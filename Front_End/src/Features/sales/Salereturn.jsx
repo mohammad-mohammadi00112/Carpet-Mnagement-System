@@ -1,10 +1,16 @@
 
-
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search, Plus, X, RotateCcw, Wallet,
-  CheckCircle2, Clock, Eye, CalendarDays
+  CheckCircle2, Eye, RefreshCw
 } from "lucide-react";
+
+import {
+  getSaleReturns,
+  createSaleReturn
+} from "../services/sales/saleReturnService";
+
+import { getSales } from "../services/sales/saleService";
 
 const translations = {
   en: {
@@ -25,7 +31,6 @@ const translations = {
     actions: "Actions",
     createTitle: "Create Sales Return",
     selectSale: "Select Sale",
-    selectEmployee: "Select Employee",
     returnDate: "Return Date",
     enterReason: "Enter return reason...",
     refundAmount: "Refund Amount",
@@ -36,10 +41,14 @@ const translations = {
     noResults: "No returns found",
     required: "Please complete all required fields.",
     records: "returns",
-    customer: "Customer",
-    employee: "Employee",
-    status: "Return",
-    currency: "AFN"
+    currency: "AFN",
+    loading: "Loading...",
+    loadError: "Could not load data.",
+    saveError: "Could not save the return.",
+    success: "Return successfully registered.",
+    refresh: "Refresh",
+    noSales: "No sales available",
+    saleCustomer: "Sale"
   },
   fa: {
     title: "برگشت فروشات",
@@ -59,7 +68,6 @@ const translations = {
     actions: "عملیات",
     createTitle: "ثبت برگشت فروش",
     selectSale: "انتخاب فروش",
-    selectEmployee: "انتخاب کارمند",
     returnDate: "تاریخ برگشت",
     enterReason: "دلیل برگشت را وارد کنید...",
     refundAmount: "مبلغ بازپرداخت",
@@ -70,10 +78,14 @@ const translations = {
     noResults: "هیچ برگشتی پیدا نشد",
     required: "لطفاً تمام خانه‌های ضروری را تکمیل کنید.",
     records: "برگشت",
-    customer: "مشتری",
-    employee: "کارمند",
-    status: "برگشت",
-    currency: "افغانی"
+    currency: "افغانی",
+    loading: "در حال بارگذاری...",
+    loadError: "دریافت معلومات موفق نشد.",
+    saveError: "ثبت برگشت موفق نشد.",
+    success: "برگشت با موفقیت ثبت شد.",
+    refresh: "تازه‌سازی",
+    noSales: "هیچ فروشی موجود نیست",
+    saleCustomer: "فروش"
   },
   ps: {
     title: "د پلورنې بېرته راګرځول",
@@ -93,7 +105,6 @@ const translations = {
     actions: "کړنې",
     createTitle: "د پلورنې بېرته راګرځول ثبتول",
     selectSale: "پلورنه وټاکئ",
-    selectEmployee: "کارکوونکی وټاکئ",
     returnDate: "د بېرته راګرځولو نېټه",
     enterReason: "د بېرته راګرځولو دلیل ولیکئ...",
     refundAmount: "د بېرته ورکړې اندازه",
@@ -104,75 +115,32 @@ const translations = {
     noResults: "هیڅ بېرته راګرځول ونه موندل شو",
     required: "مهرباني وکړئ اړین معلومات بشپړ کړئ.",
     records: "بېرته راګرځول",
-    customer: "پېرودونکی",
-    employee: "کارکوونکی",
-    status: "بېرته راګرځول",
-    currency: "افغانۍ"
+    currency: "افغانۍ",
+    loading: "بارول...",
+    loadError: "معلومات ترلاسه نه شول.",
+    saveError: "بېرته راګرځول ثبت نه شو.",
+    success: "بېرته راګرځول په بریالیتوب ثبت شو.",
+    refresh: "تازه کول",
+    noSales: "هیڅ پلورنه نشته",
+    saleCustomer: "پلورنه"
   }
 };
-
-const initialReturns = [
-  {
-    id: 1,
-    sale_id: 1,
-    return_date: "2026-10-06T09:00",
-    reason: "Wrong color selected",
-    refund_amount: 2000,
-    processed_by: 1
-  },
-  {
-    id: 2,
-    sale_id: 2,
-    return_date: "2026-10-07T09:30",
-    reason: "Customer changed mind",
-    refund_amount: 1000,
-    processed_by: 1
-  },
-  {
-    id: 3,
-    sale_id: 3,
-    return_date: "2026-10-08T10:00",
-    reason: "Minor defect",
-    refund_amount: 500,
-    processed_by: 1
-  },
-  {
-    id: 4,
-    sale_id: 4,
-    return_date: "2026-10-09T11:00",
-    reason: "Size issue",
-    refund_amount: 1500,
-    processed_by: 1
-  },
-  {
-    id: 5,
-    sale_id: 5,
-    return_date: "2026-10-10T12:00",
-    reason: "Exchange requested",
-    refund_amount: 300,
-    processed_by: 1
-  }
-];
-
-const salesOptions = [
-  { id: 1, customer: "Customer #1", total: 42000 },
-  { id: 2, customer: "Customer #2", total: 33000 },
-  { id: 3, customer: "Customer #3", total: 12000 },
-  { id: 4, customer: "Customer #4", total: 24000 },
-  { id: 5, customer: "Customer #5", total: 6000 }
-];
 
 const SaleReturn = () => {
   const language = localStorage.getItem("language") || "en";
   const t = translations[language] || translations.en;
   const rtl = ["fa", "ps"].includes(language);
 
-  const [returns, setReturns] = useState(initialReturns);
+  const [returns, setReturns] = useState([]);
+  const [sales, setSales] = useState([]);
   const [search, setSearch] = useState("");
   const [saleFilter, setSaleFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
     sale_id: "",
@@ -183,16 +151,49 @@ const SaleReturn = () => {
   });
 
   const money = (value) =>
-    new Intl.NumberFormat(language === "en" ? "en-US" : "fa-IR").format(
-      Number(value || 0)
-    );
+    new Intl.NumberFormat(
+      language === "en" ? "en-US" : language === "ps" ? "ps-AF" : "fa-IR"
+    ).format(Number(value || 0));
 
   const formatDate = (value) => {
     if (!value) return "—";
+
     return new Date(value).toLocaleDateString(
       language === "en" ? "en-US" : language === "ps" ? "ps-AF" : "fa-IR"
     );
   };
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const [returnData, salesData] = await Promise.all([
+        getSaleReturns(),
+        getSales()
+      ]);
+
+      if (!Array.isArray(returnData)) {
+        throw new Error("Invalid sale returns response");
+      }
+
+      if (!Array.isArray(salesData)) {
+        throw new Error("Invalid sales response");
+      }
+
+      setReturns(returnData);
+      setSales(salesData);
+    } catch (err) {
+      console.error("Sale returns loading error:", err);
+      setError(t.loadError);
+    } finally {
+      setLoading(false);
+    }
+  }, [t.loadError]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const filteredReturns = useMemo(() => {
     return returns.filter((item) => {
@@ -201,17 +202,18 @@ const SaleReturn = () => {
       const matchesSearch =
         String(item.id).includes(searchText) ||
         String(item.sale_id).includes(searchText) ||
-        item.reason.toLowerCase().includes(searchText);
+        String(item.reason || "").toLowerCase().includes(searchText);
 
       const matchesSale =
-        saleFilter === "all" || item.sale_id === Number(saleFilter);
+        saleFilter === "all" ||
+        Number(item.sale_id) === Number(saleFilter);
 
       return matchesSearch && matchesSale;
     });
   }, [returns, search, saleFilter]);
 
   const refundTotal = returns.reduce(
-    (sum, item) => sum + Number(item.refund_amount),
+    (sum, item) => sum + Number(item.refund_amount || 0),
     0
   );
 
@@ -224,7 +226,7 @@ const SaleReturn = () => {
     },
     {
       label: t.refundTotal,
-      value: money(refundTotal),
+      value: `${money(refundTotal)} ${t.currency}`,
       icon: Wallet,
       color: "violet"
     },
@@ -244,38 +246,55 @@ const SaleReturn = () => {
       refund_amount: "",
       processed_by: "1"
     });
+
     setError("");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    setNotice("");
 
     const refund = Number(form.refund_amount);
+    const processedBy = Number(form.processed_by);
 
     if (
       !form.sale_id ||
       !form.return_date ||
-      !form.processed_by ||
       !form.reason.trim() ||
       !Number.isFinite(refund) ||
-      refund < 0
+      refund < 0 ||
+      !Number.isInteger(processedBy) ||
+      processedBy <= 0
     ) {
       setError(t.required);
       return;
     }
 
-    const newReturn = {
-      id: Math.max(0, ...returns.map((item) => item.id)) + 1,
+    const returnData = {
       sale_id: Number(form.sale_id),
       return_date: form.return_date,
       reason: form.reason.trim(),
       refund_amount: refund,
-      processed_by: Number(form.processed_by)
+      processed_by: processedBy
     };
 
-    setReturns((prev) => [newReturn, ...prev]);
-    setShowModal(false);
-    resetForm();
+    setSaving(true);
+
+    try {
+      await createSaleReturn(returnData);
+
+      setShowModal(false);
+      resetForm();
+      setNotice(t.success);
+
+      await fetchData();
+    } catch (err) {
+      console.error("Create sale return error:", err);
+      setError(t.saveError);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const closeModal = () => {
@@ -287,7 +306,7 @@ const SaleReturn = () => {
     <div dir={rtl ? "rtl" : "ltr"} className="space-y-6">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
             {t.title}
@@ -297,19 +316,47 @@ const SaleReturn = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setShowModal(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition"
-        >
-          <Plus size={18} />
-          {t.newReturn}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <RefreshCw size={17} />
+            {t.refresh}
+          </button>
+
+          <button
+            onClick={() => {
+              resetForm();
+              setShowModal(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <Plus size={18} />
+            {t.newReturn}
+          </button>
+        </div>
       </div>
 
+      {/* Notices */}
+      {notice && (
+        <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
+          {notice}
+        </div>
+      )}
+
+      {error && !showModal && (
+        <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">
+          {error}
+        </div>
+      )}
+
       {/* Statistics */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
+
           const colors = {
             blue: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
             violet: "bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400",
@@ -323,13 +370,14 @@ const SaleReturn = () => {
             >
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
                     {stat.label}
                   </p>
-                  <p className="mt-2 text-xl sm:text-2xl font-bold text-slate-800 dark:text-white">
+                  <p className="mt-2 text-xl font-bold text-slate-800 dark:text-white sm:text-2xl">
                     {stat.value}
                   </p>
                 </div>
+
                 <div className={`rounded-xl p-3 ${colors[stat.color]}`}>
                   <Icon size={21} />
                 </div>
@@ -341,7 +389,7 @@ const SaleReturn = () => {
 
       {/* Filters */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="relative">
             <Search
               size={18}
@@ -349,12 +397,13 @@ const SaleReturn = () => {
                 rtl ? "right-3" : "left-3"
               }`}
             />
+
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t.search}
               className={`w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white ${
-                rtl ? "pr-10 pl-3" : "pl-10 pr-3"
+                rtl ? "pl-3 pr-10" : "pl-10 pr-3"
               }`}
             />
           </div>
@@ -365,9 +414,10 @@ const SaleReturn = () => {
             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
           >
             <option value="all">{t.allSales}</option>
-            {salesOptions.map((sale) => (
+
+            {sales.map((sale) => (
               <option key={sale.id} value={sale.id}>
-                #{sale.id} - {sale.customer}
+                #{sale.id} - {sale.customer_name || sale.customer || `${t.saleCustomer} #${sale.id}`}
               </option>
             ))}
           </select>
@@ -380,12 +430,17 @@ const SaleReturn = () => {
           <h2 className="font-semibold text-slate-800 dark:text-white">
             {t.title}
           </h2>
+
           <span className="text-xs text-slate-500 dark:text-slate-400">
             {filteredReturns.length} {t.records}
           </span>
         </div>
 
-        {filteredReturns.length === 0 ? (
+        {loading ? (
+          <div className="py-16 text-center text-sm text-slate-500 dark:text-slate-400">
+            {t.loading}
+          </div>
+        ) : filteredReturns.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-slate-400">
             <RotateCcw size={38} />
             <p className="mt-3 text-sm">{t.noResults}</p>
@@ -393,7 +448,7 @@ const SaleReturn = () => {
         ) : (
           <>
             {/* Desktop Table */}
-            <div className="hidden lg:block overflow-x-auto">
+            <div className="hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
                   <tr>
@@ -406,7 +461,10 @@ const SaleReturn = () => {
                       t.processedBy,
                       t.actions
                     ].map((heading) => (
-                      <th key={heading} className="whitespace-nowrap px-4 py-3 text-start font-medium">
+                      <th
+                        key={heading}
+                        className="whitespace-nowrap px-4 py-3 text-start font-medium"
+                      >
                         {heading}
                       </th>
                     ))}
@@ -415,25 +473,34 @@ const SaleReturn = () => {
 
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {filteredReturns.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                    <tr
+                      key={item.id}
+                      className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
+                    >
                       <td className="px-4 py-4 font-semibold text-slate-800 dark:text-white">
                         #{item.id}
                       </td>
+
                       <td className="px-4 py-4 text-slate-600 dark:text-slate-300">
                         #{item.sale_id}
                       </td>
+
                       <td className="whitespace-nowrap px-4 py-4 text-slate-500 dark:text-slate-400">
                         {formatDate(item.return_date)}
                       </td>
+
                       <td className="max-w-56 px-4 py-4 text-slate-600 dark:text-slate-300">
                         {item.reason}
                       </td>
+
                       <td className="whitespace-nowrap px-4 py-4 font-semibold text-rose-600">
                         {money(item.refund_amount)} {t.currency}
                       </td>
+
                       <td className="px-4 py-4 text-slate-600 dark:text-slate-300">
                         #{item.processed_by}
                       </td>
+
                       <td className="px-4 py-4">
                         <button
                           onClick={() => setSelectedReturn(item)}
@@ -450,13 +517,14 @@ const SaleReturn = () => {
             </div>
 
             {/* Mobile and Tablet Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:hidden divide-y divide-slate-100 dark:divide-slate-800">
+            <div className="grid grid-cols-1 divide-y divide-slate-100 dark:divide-slate-800 md:grid-cols-2 lg:hidden">
               {filteredReturns.map((item) => (
                 <div key={item.id} className="space-y-3 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-bold text-slate-800 dark:text-white">
                       #{item.id}
                     </span>
+
                     <span className="text-sm font-semibold text-rose-600">
                       {money(item.refund_amount)} {t.currency}
                     </span>
@@ -469,6 +537,7 @@ const SaleReturn = () => {
                         #{item.sale_id}
                       </p>
                     </div>
+
                     <div>
                       <p className="text-xs text-slate-400">{t.date}</p>
                       <p className="mt-1 text-slate-700 dark:text-slate-200">
@@ -495,7 +564,7 @@ const SaleReturn = () => {
         )}
       </div>
 
-      {/* New Return Modal */}
+      {/* Create Return Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
           <div className="my-auto w-full max-w-xl rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900">
@@ -503,6 +572,7 @@ const SaleReturn = () => {
               <h2 className="text-lg font-bold text-slate-800 dark:text-white">
                 {t.createTitle}
               </h2>
+
               <button
                 onClick={closeModal}
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -516,30 +586,43 @@ const SaleReturn = () => {
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.saleId}
                 </label>
+
                 <select
                   required
                   value={form.sale_id}
-                  onChange={(e) => setForm({ ...form, sale_id: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, sale_id: e.target.value })
+                  }
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
                   <option value="">{t.selectSale}</option>
-                  {salesOptions.map((sale) => (
+
+                  {sales.map((sale) => (
                     <option key={sale.id} value={sale.id}>
-                      #{sale.id} - {sale.customer}
+                      #{sale.id} - {sale.customer_name || sale.customer || `${t.saleCustomer} #${sale.id}`}
                     </option>
                   ))}
                 </select>
+
+                {sales.length === 0 && (
+                  <p className="mt-1 text-xs text-slate-400">
+                    {t.noSales}
+                  </p>
+                )}
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.returnDate}
                 </label>
+
                 <input
                   type="datetime-local"
                   required
                   value={form.return_date}
-                  onChange={(e) => setForm({ ...form, return_date: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, return_date: e.target.value })
+                  }
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
               </div>
@@ -548,13 +631,16 @@ const SaleReturn = () => {
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.refundAmount}
                 </label>
+
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   required
                   value={form.refund_amount}
-                  onChange={(e) => setForm({ ...form, refund_amount: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, refund_amount: e.target.value })
+                  }
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
               </div>
@@ -563,12 +649,15 @@ const SaleReturn = () => {
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.processedBy}
                 </label>
+
                 <input
                   type="number"
                   min="1"
                   required
                   value={form.processed_by}
-                  onChange={(e) => setForm({ ...form, processed_by: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, processed_by: e.target.value })
+                  }
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
               </div>
@@ -577,11 +666,14 @@ const SaleReturn = () => {
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.reason}
                 </label>
+
                 <textarea
                   rows={3}
                   required
                   value={form.reason}
-                  onChange={(e) => setForm({ ...form, reason: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, reason: e.target.value })
+                  }
                   placeholder={t.enterReason}
                   className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
@@ -595,15 +687,18 @@ const SaleReturn = () => {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                  disabled={saving}
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
                 >
                   {t.cancel}
                 </button>
+
                 <button
                   type="submit"
-                  className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                  disabled={saving || sales.length === 0}
+                  className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {t.save}
+                  {saving ? t.loading : t.save}
                 </button>
               </div>
             </form>
@@ -619,6 +714,7 @@ const SaleReturn = () => {
               <h2 className="text-lg font-bold text-slate-800 dark:text-white">
                 {t.details} #{selectedReturn.id}
               </h2>
+
               <button
                 onClick={() => setSelectedReturn(null)}
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -635,7 +731,10 @@ const SaleReturn = () => {
                 [t.refund, `${money(selectedReturn.refund_amount)} ${t.currency}`],
                 [t.processedBy, `#${selectedReturn.processed_by}`]
               ].map(([label, value]) => (
-                <div key={label} className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+                <div
+                  key={label}
+                  className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800"
+                >
                   <p className="text-xs text-slate-400">{label}</p>
                   <p className="mt-1 font-semibold text-slate-800 dark:text-white">
                     {value}

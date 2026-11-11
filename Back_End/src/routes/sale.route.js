@@ -21,8 +21,8 @@ router.get('/sales', authenticateToken, authorizePermission('sales.read'), async
 // GET Sale By ID
 router.get('/sales/:id', authenticateToken, authorizePermission('sales.read'), async (req, res) => {
     try {
-        const result = await carpetDB.query(`
-            SELECT * FROM sales WHERE id = $1,`
+        const result = await carpetDB.query(
+            'SELECT * FROM sales WHERE id = $1',
             [req.params.id]
         )
         res.json(result.rows)
@@ -30,7 +30,6 @@ router.get('/sales/:id', authenticateToken, authorizePermission('sales.read'), a
         res.json(error)
     }
 })
-
 // DELETE Sale
 router.delete('/sales/:id', authenticateToken, authorizePermission('sales.manage'), async (req, res) => {
     try {
@@ -101,7 +100,7 @@ router.put('/sales/:id', authenticateToken, authorizePermission('sales.manage'),
                     due_date = $9,
                     notes = $10,
                     created_by = $11
-                WHERE id = $12,`
+                WHERE id = $12`,
                 [
                     customer_id, employee_id, sale_date, currency_id,
                     exchange_rate, tax_amount ?? 0, payment_status,

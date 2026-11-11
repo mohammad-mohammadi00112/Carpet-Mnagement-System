@@ -30,7 +30,10 @@ import Customer from "./Features/contacts/Customers";
 
 // Finance part Conponent
 import Expenses from "./Features/finance/Expenses";
-
+import ExpenseCategory from "./Features/finance/Expensecategory";
+import Payments from "./Features/finance/Payments";
+import Currencies from "./Features/finance/Currencies";
+import ExchangeRates from "./Features/finance/Exchangerate";
 const App = () => {
   return (
     <Routes>
@@ -67,6 +70,10 @@ const App = () => {
         <Route path="/customers" element={<Customer />}/>
         {/* Finance part Component*/}
         <Route path="/finance/expenses" element={<Expenses />}/>
+        <Route path="/finance/expense-categories" element={<ExpenseCategory />}/>
+        <Route path="/finance/payments" element={<Payments />}/>
+        <Route path="/finance/currencies" element={<Currencies />}/>
+        <Route path="/finance/exchange-rates" element={<ExchangeRates />}/>
       </Route>
 
       <Route path="*" element={<Navigate to="/login" replace />} />
