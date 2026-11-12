@@ -1,10 +1,16 @@
 
-
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search, Plus, Pencil, Trash2, Eye, X,
-  ShoppingBag, Package, MapPin, Hash, DollarSign
+  ShoppingBag, Package, DollarSign
 } from "lucide-react";
+
+import {
+  getPurchaseDetails,
+  createPurchaseDetail,
+  updatePurchaseDetail,
+  deletePurchaseDetail
+} from "../services/purchases/purchaseDetailService";
 
 const translations = {
   en: {
@@ -33,8 +39,12 @@ const translations = {
     details: "Detail Information",
     noData: "No purchase details found",
     confirmDelete: "Are you sure you want to delete this item?",
-    required: "Please fill in all required fields.",
-    close: "Close"
+    required: "Please fill in all required fields correctly.",
+    close: "Close",
+    loading: "Loading purchase details...",
+    saving: "Saving...",
+    loadError: "Failed to load purchase details.",
+    error: "Something went wrong."
   },
   fa: {
     title: "جزئیات خرید",
@@ -62,8 +72,12 @@ const translations = {
     details: "معلومات جزئیات",
     noData: "جزئیات خریدی یافت نشد",
     confirmDelete: "آیا از حذف این مورد اطمینان دارید؟",
-    required: "لطفاً تمام فیلدهای ضروری را تکمیل کنید.",
-    close: "بستن"
+    required: "لطفاً تمام فیلدهای ضروری را درست تکمیل کنید.",
+    close: "بستن",
+    loading: "در حال دریافت جزئیات خرید...",
+    saving: "در حال ذخیره...",
+    loadError: "دریافت جزئیات خرید ناموفق بود.",
+    error: "مشکلی به وجود آمده است."
   },
   ps: {
     title: "د پېرود تفصیلات",
@@ -91,24 +105,20 @@ const translations = {
     details: "د تفصیلاتو معلومات",
     noData: "د پېرود تفصیلات ونه موندل شول",
     confirmDelete: "ایا غواړئ دا توکی حذف کړئ؟",
-    required: "مهرباني وکړئ ټول اړین ځایونه ډک کړئ.",
-    close: "بندول"
+    required: "مهرباني وکړئ ټول اړین ځایونه سم ډک کړئ.",
+    close: "بندول",
+    loading: "د پېرود تفصیلات ترلاسه کېږي...",
+    saving: "ساتل کېږي...",
+    loadError: "د پېرود تفصیلات ترلاسه نه شول.",
+    error: "یوه ستونزه رامنځته شوه."
   }
 };
-
-const initialData = [
-  { id: 1, purchase_id: 1, carpet_id: 1, location_id: 2, quantity: 1, purchase_price: 35000 },
-  { id: 2, purchase_id: 2, carpet_id: 2, location_id: 2, quantity: 1, purchase_price: 28000 },
-  { id: 3, purchase_id: 3, carpet_id: 3, location_id: 2, quantity: 1, purchase_price: 9000 },
-  { id: 4, purchase_id: 4, carpet_id: 4, location_id: 5, quantity: 1, purchase_price: 18000 },
-  { id: 5, purchase_id: 5, carpet_id: 5, location_id: 2, quantity: 1, purchase_price: 4000 }
-];
 
 const emptyForm = {
   purchase_id: "",
   carpet_id: "",
   location_id: "",
-  quantity: 1,
+  quantity: "1",
   purchase_price: ""
 };
 
@@ -117,12 +127,37 @@ export default function PurchaseDetail() {
   const t = translations[language] || translations.en;
   const rtl = language === "fa" || language === "ps";
 
-  const [data, setData] = useState(initialData);
+  const [data, setData] = useState([]);
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState(false);
   const [viewItem, setViewItem] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // Load purchase details from backend
+  const loadPurchaseDetails = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const result = await getPurchaseDetails();
+      setData(Array.isArray(result) ? result : []);
+    } catch (err) {
+      setError(
+        err.response?.data?.message || t.loadError
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPurchaseDetails();
+  }, []);
 
   const filteredData = useMemo(() => {
     const term = search.toLowerCase().trim();
@@ -133,56 +168,56 @@ export default function PurchaseDetail() {
         item.purchase_id,
         item.carpet_id,
         item.location_id
-      ].some(value => String(value).toLowerCase().includes(term))
+      ].some(value =>
+        String(value).toLowerCase().includes(term)
+      )
     );
   }, [data, search]);
 
   const totalQuantity = data.reduce(
-    (sum, item) => sum + Number(item.quantity), 0
+    (sum, item) => sum + Number(item.quantity || 0),
+    0
   );
 
   const totalAmount = data.reduce(
-    (sum, item) => sum + Number(item.quantity) * Number(item.purchase_price), 0
+    (sum, item) =>
+      sum + Number(item.quantity || 0) * Number(item.purchase_price || 0),
+    0
   );
 
-  const money = value => Number(value).toLocaleString();
+  const money = value => Number(value || 0).toLocaleString();
+
+  const getErrorMessage = err =>
+    err.response?.data?.message || err.message || t.error;
 
   const openAdd = () => {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm });
+    setError("");
     setModal(true);
   };
 
   const openEdit = item => {
     setEditingId(item.id);
+
     setForm({
-      purchase_id: item.purchase_id,
-      carpet_id: item.carpet_id,
-      location_id: item.location_id,
-      quantity: item.quantity,
-      purchase_price: item.purchase_price
+      purchase_id: String(item.purchase_id),
+      carpet_id: String(item.carpet_id),
+      location_id: String(item.location_id),
+      quantity: String(item.quantity),
+      purchase_price: String(item.purchase_price)
     });
+
+    setError("");
     setModal(true);
   };
 
-  const handleSave = e => {
+  // Create or update purchase detail
+  const handleSave = async e => {
     e.preventDefault();
-
-    const requiredFields = [
-      form.purchase_id,
-      form.carpet_id,
-      form.location_id,
-      form.quantity,
-      form.purchase_price
-    ];
-
-    if (requiredFields.some(value => value === "" || value === null)) {
-      alert(t.required);
-      return;
-    }
+    setError("");
 
     const item = {
-      ...form,
       purchase_id: Number(form.purchase_id),
       carpet_id: Number(form.carpet_id),
       location_id: Number(form.location_id),
@@ -191,37 +226,58 @@ export default function PurchaseDetail() {
     };
 
     if (
+      !Object.values(form).every(value => value !== "") ||
+      !Number.isInteger(item.purchase_id) ||
+      !Number.isInteger(item.carpet_id) ||
+      !Number.isInteger(item.location_id) ||
+      !Number.isInteger(item.quantity) ||
+      item.purchase_id <= 0 ||
+      item.carpet_id <= 0 ||
+      item.location_id <= 0 ||
       item.quantity <= 0 ||
-      item.purchase_price < 0 ||
-      !Number.isFinite(item.purchase_price)
+      !Number.isFinite(item.purchase_price) ||
+      item.purchase_price < 0
     ) {
-      alert(t.required);
+      setError(t.required);
       return;
     }
 
-    if (editingId) {
-      setData(prev =>
-        prev.map(row =>
-          row.id === editingId ? { ...row, ...item } : row
-        )
-      );
-    } else {
-      const newId = Math.max(0, ...data.map(row => row.id)) + 1;
-      setData(prev => [...prev, { id: newId, ...item }]);
-    }
+    try {
+      setSaving(true);
 
-    setModal(false);
-    setForm(emptyForm);
-    setEditingId(null);
+      if (editingId) {
+        await updatePurchaseDetail(editingId, item);
+      } else {
+        await createPurchaseDetail(item);
+      }
+
+      await loadPurchaseDetails();
+
+      setModal(false);
+      setForm({ ...emptyForm });
+      setEditingId(null);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = id => {
-    if (window.confirm(t.confirmDelete)) {
-      setData(prev => prev.filter(item => item.id !== id));
+  // Delete purchase detail
+  const handleDelete = async id => {
+    if (!window.confirm(t.confirmDelete)) return;
+
+    try {
+      setError("");
+      await deletePurchaseDetail(id);
+      await loadPurchaseDetails();
+    } catch (err) {
+      setError(getErrorMessage(err));
     }
   };
 
-  const inputClass = "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:focus:ring-blue-900";
+  const inputClass =
+    "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:focus:ring-blue-900";
 
   const stats = [
     {
@@ -245,8 +301,10 @@ export default function PurchaseDetail() {
   ];
 
   return (
-    <div dir={rtl ? "rtl" : "ltr"} className="min-h-full space-y-6 bg-gray-50 p-4 dark:bg-gray-950 sm:p-6">
-
+    <div
+      dir={rtl ? "rtl" : "ltr"}
+      className="min-h-full space-y-6 bg-gray-50 p-4 dark:bg-gray-950 sm:p-6"
+    >
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
@@ -267,10 +325,18 @@ export default function PurchaseDetail() {
         </button>
       </div>
 
+      {/* Error Message */}
+      {error && !modal && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300">
+          {error}
+        </div>
+      )}
+
       {/* Statistics */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
+
           return (
             <div
               key={index}
@@ -285,6 +351,7 @@ export default function PurchaseDetail() {
                     {stat.value}
                   </h3>
                 </div>
+
                 <div className={`rounded-xl p-3 ${stat.color}`}>
                   <Icon size={23} />
                 </div>
@@ -296,13 +363,15 @@ export default function PurchaseDetail() {
 
       {/* Table Section */}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-
         <div className="border-b border-gray-200 p-4 dark:border-gray-800">
           <div className="relative max-w-md">
             <Search
               size={18}
-              className={`absolute top-3 text-gray-400 ${rtl ? "right-3" : "left-3"}`}
+              className={`absolute top-3 text-gray-400 ${
+                rtl ? "right-3" : "left-3"
+              }`}
             />
+
             <input
               type="text"
               value={search}
@@ -313,116 +382,208 @@ export default function PurchaseDetail() {
           </div>
         </div>
 
-        {/* Desktop Table */}
-        <div className="hidden overflow-x-auto md:block">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-              <tr>
-                {[t.id, t.purchase, t.carpet, t.location, t.quantity, t.price, t.amount, t.actions].map((heading, i) => (
-                  <th key={i} className="whitespace-nowrap px-5 py-4 text-start font-semibold">
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
+        {/* Loading */}
+        {loading ? (
+          <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
+            {t.loading}
+          </div>
+        ) : (
+          <>
+            {/* Desktop Table */}
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                  <tr>
+                    {[
+                      t.id,
+                      t.purchase,
+                      t.carpet,
+                      t.location,
+                      t.quantity,
+                      t.price,
+                      t.amount,
+                      t.actions
+                    ].map((heading, i) => (
+                      <th
+                        key={i}
+                        className="whitespace-nowrap px-5 py-4 text-start font-semibold"
+                      >
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
 
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {filteredData.map(item => (
+                    <tr
+                      key={item.id}
+                      className="transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    >
+                      <td className="px-5 py-4 font-medium text-gray-700 dark:text-gray-300">
+                        #{item.id}
+                      </td>
+                      <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                        #{item.purchase_id}
+                      </td>
+                      <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                        #{item.carpet_id}
+                      </td>
+                      <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                        #{item.location_id}
+                      </td>
+                      <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                        {item.quantity}
+                      </td>
+                      <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                        {money(item.purchase_price)}
+                      </td>
+                      <td className="px-5 py-4 font-semibold text-gray-900 dark:text-white">
+                        {money(Number(item.quantity) * Number(item.purchase_price))}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setViewItem(item)}
+                            title={t.view}
+                            className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                          >
+                            <Eye size={17} />
+                          </button>
+
+                          <button
+                            onClick={() => openEdit(item)}
+                            title={t.edit}
+                            className="rounded-lg p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30"
+                          >
+                            <Pencil size={17} />
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            title={t.delete}
+                            className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
+                          >
+                            <Trash2 size={17} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {filteredData.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan="8"
+                        className="px-5 py-12 text-center text-gray-500 dark:text-gray-400"
+                      >
+                        {t.noData}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="grid gap-3 p-4 md:hidden">
               {filteredData.map(item => (
-                <tr key={item.id} className="transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                  <td className="px-5 py-4 font-medium text-gray-700 dark:text-gray-300">#{item.id}</td>
-                  <td className="px-5 py-4 text-gray-700 dark:text-gray-300">#{item.purchase_id}</td>
-                  <td className="px-5 py-4 text-gray-700 dark:text-gray-300">#{item.carpet_id}</td>
-                  <td className="px-5 py-4 text-gray-700 dark:text-gray-300">#{item.location_id}</td>
-                  <td className="px-5 py-4 text-gray-700 dark:text-gray-300">{item.quantity}</td>
-                  <td className="px-5 py-4 text-gray-700 dark:text-gray-300">{money(item.purchase_price)}</td>
-                  <td className="px-5 py-4 font-semibold text-gray-900 dark:text-white">
-                    {money(item.quantity * item.purchase_price)}
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setViewItem(item)} title={t.view} className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-gray-200 p-4 dark:border-gray-700"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      #{item.id}
+                    </span>
+
+                    <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                      {t.purchase} #{item.purchase_id}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-gray-500 dark:text-gray-400">
+                        {t.carpet}
+                      </p>
+                      <p className="mt-1 font-medium text-gray-800 dark:text-gray-200">
+                        #{item.carpet_id}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-gray-500 dark:text-gray-400">
+                        {t.location}
+                      </p>
+                      <p className="mt-1 font-medium text-gray-800 dark:text-gray-200">
+                        #{item.location_id}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-gray-500 dark:text-gray-400">
+                        {t.quantity}
+                      </p>
+                      <p className="mt-1 font-medium text-gray-800 dark:text-gray-200">
+                        {item.quantity}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-gray-500 dark:text-gray-400">
+                        {t.price}
+                      </p>
+                      <p className="mt-1 font-medium text-gray-800 dark:text-gray-200">
+                        {money(item.purchase_price)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 dark:border-gray-700">
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {t.amount}
+                      </p>
+                      <p className="font-bold text-gray-900 dark:text-white">
+                        {money(Number(item.quantity) * Number(item.purchase_price))}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => setViewItem(item)}
+                        className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                      >
                         <Eye size={17} />
                       </button>
-                      <button onClick={() => openEdit(item)} title={t.edit} className="rounded-lg p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30">
+
+                      <button
+                        onClick={() => openEdit(item)}
+                        className="rounded-lg p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30"
+                      >
                         <Pencil size={17} />
                       </button>
-                      <button onClick={() => handleDelete(item.id)} title={t.delete} className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">
+
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
+                      >
                         <Trash2 size={17} />
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
 
               {filteredData.length === 0 && (
-                <tr>
-                  <td colSpan="8" className="px-5 py-12 text-center text-gray-500 dark:text-gray-400">
-                    {t.noData}
-                  </td>
-                </tr>
+                <p className="py-10 text-center text-gray-500 dark:text-gray-400">
+                  {t.noData}
+                </p>
               )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Cards */}
-        <div className="grid gap-3 p-4 md:hidden">
-          {filteredData.map(item => (
-            <div key={item.id} className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="font-semibold text-gray-900 dark:text-white">#{item.id}</span>
-                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                  {t.purchase} #{item.purchase_id}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400">{t.carpet}</p>
-                  <p className="mt-1 font-medium text-gray-800 dark:text-gray-200">#{item.carpet_id}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400">{t.location}</p>
-                  <p className="mt-1 font-medium text-gray-800 dark:text-gray-200">#{item.location_id}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400">{t.quantity}</p>
-                  <p className="mt-1 font-medium text-gray-800 dark:text-gray-200">{item.quantity}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400">{t.price}</p>
-                  <p className="mt-1 font-medium text-gray-800 dark:text-gray-200">{money(item.purchase_price)}</p>
-                </div>
-              </div>
-
-              <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 dark:border-gray-700">
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{t.amount}</p>
-                  <p className="font-bold text-gray-900 dark:text-white">
-                    {money(item.quantity * item.purchase_price)}
-                  </p>
-                </div>
-                <div className="flex gap-1">
-                  <button onClick={() => setViewItem(item)} className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30">
-                    <Eye size={17} />
-                  </button>
-                  <button onClick={() => openEdit(item)} className="rounded-lg p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30">
-                    <Pencil size={17} />
-                  </button>
-                  <button onClick={() => handleDelete(item.id)} className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">
-                    <Trash2 size={17} />
-                  </button>
-                </div>
-              </div>
             </div>
-          ))}
-
-          {filteredData.length === 0 && (
-            <p className="py-10 text-center text-gray-500 dark:text-gray-400">
-              {t.noData}
-            </p>
-          )}
-        </div>
+          </>
+        )}
       </div>
 
       {/* Add / Edit Modal */}
@@ -433,12 +594,25 @@ export default function PurchaseDetail() {
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                 {editingId ? t.editTitle : t.addTitle}
               </h2>
-              <button onClick={() => setModal(false)} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">
+
+              <button
+                onClick={() => {
+                  setModal(false);
+                  setError("");
+                }}
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
                 <X size={20} />
               </button>
             </div>
 
             <form onSubmit={handleSave} className="space-y-4 p-5">
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300">
+                  {error}
+                </div>
+              )}
+
               {[
                 { key: "purchase_id", label: t.purchase, min: 1 },
                 { key: "carpet_id", label: t.carpet, min: 1 },
@@ -450,16 +624,19 @@ export default function PurchaseDetail() {
                   <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                     {field.label}
                   </label>
+
                   <input
                     type="number"
                     min={field.min}
                     step={field.key === "purchase_price" ? "0.01" : "1"}
                     required
                     value={form[field.key]}
-                    onChange={e => setForm({
-                      ...form,
-                      [field.key]: e.target.value
-                    })}
+                    onChange={e =>
+                      setForm({
+                        ...form,
+                        [field.key]: e.target.value
+                      })
+                    }
                     className={inputClass}
                   />
                 </div>
@@ -468,16 +645,22 @@ export default function PurchaseDetail() {
               <div className="flex flex-col-reverse gap-3 pt-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  onClick={() => setModal(false)}
-                  className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                  disabled={saving}
+                  onClick={() => {
+                    setModal(false);
+                    setError("");
+                  }}
+                  className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   {t.cancel}
                 </button>
+
                 <button
                   type="submit"
-                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+                  disabled={saving}
+                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {t.save}
+                  {saving ? t.saving : t.save}
                 </button>
               </div>
             </form>
@@ -493,7 +676,11 @@ export default function PurchaseDetail() {
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                 {t.details} #{viewItem.id}
               </h2>
-              <button onClick={() => setViewItem(null)} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">
+
+              <button
+                onClick={() => setViewItem(null)}
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -506,11 +693,22 @@ export default function PurchaseDetail() {
                 [t.location, viewItem.location_id],
                 [t.quantity, viewItem.quantity],
                 [t.price, money(viewItem.purchase_price)],
-                [t.amount, money(viewItem.quantity * viewItem.purchase_price)]
+                [
+                  t.amount,
+                  money(Number(viewItem.quantity) * Number(viewItem.purchase_price))
+                ]
               ].map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-4 border-b border-gray-100 pb-3 text-sm dark:border-gray-800">
-                  <span className="text-gray-500 dark:text-gray-400">{label}</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">{value}</span>
+                <div
+                  key={label}
+                  className="flex justify-between gap-4 border-b border-gray-100 pb-3 text-sm dark:border-gray-800"
+                >
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {label}
+                  </span>
+
+                  <span className="font-semibold text-gray-900 dark:text-white">
+                    {value}
+                  </span>
                 </div>
               ))}
             </div>
@@ -526,7 +724,6 @@ export default function PurchaseDetail() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

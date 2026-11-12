@@ -7,15 +7,15 @@ const getStoredAuth = () => {
   try {
     const stored =
       localStorage.getItem("carpetpro_auth") ||
-      sessionStorage.getItem("carpetpro_auth");
+      sessionStorage.getItem("carpetpro_auth")
 
-    return stored ? JSON.parse(stored) : null;
+    return stored ? JSON.parse(stored) : null
   } catch {
-    localStorage.removeItem("carpetpro_auth");
-    sessionStorage.removeItem("carpetpro_auth");
-    return null;
+    localStorage.removeItem("carpetpro_auth")
+    sessionStorage.removeItem("carpetpro_auth")
+    return null
   }
-};
+}
 
 export const AuthProvider = ({ children }) => {
   const [auth, setAuth] = useState(getStoredAuth);
@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }) => {
     const authData = {
       token: data.token,
       user: data.user,
-    };
+    }
 
     localStorage.removeItem("carpetpro_auth");
     sessionStorage.removeItem("carpetpro_auth");
@@ -45,10 +45,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem("carpetpro_auth");
-    sessionStorage.removeItem("carpetpro_auth");
-    setAuth(null);
-  };
+    localStorage.removeItem("carpetpro_auth")
+    sessionStorage.removeItem("carpetpro_auth")
+    setAuth(null)
+  }
 
   return (
     <AuthContext.Provider
@@ -62,15 +62,15 @@ export const AuthProvider = ({ children }) => {
     >
       {children}
     </AuthContext.Provider>
-  );
-};
+  )
+}
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
+  const context = useContext(AuthContext)
 
   if (!context) {
-    throw new Error("useAuth must be used inside AuthProvider");
+    throw new Error("useAuth must be used inside AuthProvider")
   }
 
-  return context;
-};
+  return context
+}

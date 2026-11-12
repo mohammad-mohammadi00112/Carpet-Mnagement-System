@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -210,7 +210,7 @@ const menuGroups = [
 const Sidebar = () => {
   const { i18n } = useTranslation();
   const location = useLocation();
-
+  const navigate = useNavigate()
   const [openGroups, setOpenGroups] = useState({});
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -375,8 +375,8 @@ const Sidebar = () => {
         <div className="shrink-0 p-2 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-1">
           <button
             type="button"
-            disabled
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-60"
+            onClick={() => navigate("/settings")}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
           >
             <FiSettings size={17} />
             <span>{text.settings}</span>

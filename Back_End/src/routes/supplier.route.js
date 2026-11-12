@@ -16,18 +16,38 @@ router.get('/suppliers', authenticateToken, authorizePermission('purchases.read'
 router.get('/suppliers/:id', authenticateToken, authorizePermission('purchases.read'),(req, res) => {
     const { id } = req.params
     carpetDB
-        .query(`SELECT * FROM suppliers WHERE id = ${id};`)
+        .query(`SELECT * FROM suppliers WHERE id = $1;`, [id])
         .then((result) => res.json(result.rows))
         .catch((error) => res.json(error))
 })
-router.delete('/suppliers/:id', authenticateToken, authorizePermission('purchases.manage'),(req, res) => {
-    const { id } = req.params
-    carpetDB
-        .query(`DELETE FROM suppliers WHERE id = ${id};`)
-        .then(() => res.json({ message: 'Supplier Has Been Deleted!' }))
-        .catch((error) => res.json(error))
-})
+router.delete('/suppliers/:id', authenticateToken, authorizePermission('purchases.manage'), async (req, res) => {
+    try {
+        const { id } = req.params;
 
+        const result = await carpetDB.query(
+            `DELETE FROM suppliers WHERE id = $1 RETURNING id;`,
+            [id]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                message: 'Supplier not found!'
+            });
+        }
+
+        res.status(200).json({
+            message: 'Supplier has been deleted!',
+            id: result.rows[0].id
+        });
+
+    } catch (error) {
+        console.error('Delete Supplier Error:', error.message);
+
+        res.status(500).json({
+            message: error.message
+        });
+    }
+});
 router.post('/suppliers', authenticateToken, authorizePermission('purchases.manage'),(req, res) => {
     const { first_name, last_name, company_name, phone, email, address, description, is_active } = req.body
     carpetDB

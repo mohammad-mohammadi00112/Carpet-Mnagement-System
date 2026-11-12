@@ -1,39 +1,47 @@
 
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom"
 
-import Login from "./Features/auth/Login";
-import Home from "./Features/layout/home/Home";
+import Login from "./Features/auth/Login"
+import Home from "./Features/layout/home/Home"
 
 // Carpet Management
-import Carpets from "./Features/carpets/Carpets";
-import CarpetCategory from "./Features/carpets/Carpetcategory";
-import CarpetDetail from "./Features/carpets/Carpetdetail";
-import Locations from "./Features/carpets/Locations";
-import Inventory from "./Features/carpets/Inventory";
-import StockMovements from "./Features/carpets/Stockmovement";
+import Carpets from "./Features/carpets/Carpets"
+import CarpetCategory from "./Features/carpets/Carpetcategory"
+import CarpetDetail from "./Features/carpets/Carpetdetail"
+import Locations from "./Features/carpets/Locations"
+import Inventory from "./Features/carpets/Inventory"
+import StockMovements from "./Features/carpets/Stockmovement"
 
 // Sales Management
-import Sale from "./Features/sales/Sale";
-import SaleReturn from "./Features/sales/Salereturn";
-import ReturnDetail from "./Features/sales/Returndetail";
-import Invoice from "./Features/sales/Invoice";
-import SaleDetails from "./Features/sales/Saledetail";
+import Sale from "./Features/sales/Sale"
+import SaleReturn from "./Features/sales/Salereturn"
+import ReturnDetail from "./Features/sales/Returndetail"
+import Invoice from "./Features/sales/Invoice"
+import SaleDetails from "./Features/sales/Saledetail"
 
 // Purchase Management
-import Purchases from "./Features/purchases/Purchases";
-import PurchaseDetail from "./Features/purchases/Purchasedetails";
-import PurchasePayments from "./Features/purchases/Purchasepayments";
-import Suppliers from "./Features/purchases/Suppliers";
+import Purchases from "./Features/purchases/Purchases"
+import PurchaseDetail from "./Features/purchases/Purchasedetails"
+import PurchasePayments from "./Features/purchases/Purchasepayments"
+import Suppliers from "./Features/purchases/Suppliers"
 // Contact Management
-import Employee from "./Features/contacts/Employees";
-import Customer from "./Features/contacts/Customers";
+import Employee from "./Features/contacts/Employees"
+import Customer from "./Features/contacts/Customers"
 
 // Finance part Conponent
-import Expenses from "./Features/finance/Expenses";
-import ExpenseCategory from "./Features/finance/Expensecategory";
-import Payments from "./Features/finance/Payments";
-import Currencies from "./Features/finance/Currencies";
-import ExchangeRates from "./Features/finance/Exchangerate";
+import Expenses from "./Features/finance/Expenses"
+import ExpenseCategory from "./Features/finance/Expensecategory"
+import Payments from "./Features/finance/Payments"
+import Currencies from "./Features/finance/Currencies"
+import ExchangeRates from "./Features/finance/Exchangerate"
+// Administration Parts
+import Users from "./Features/administration/Users"
+import Roles from "./Features/administration/Roles"
+import Permissions from "./Features/administration/Premissions"
+import RolePermissions from "./Features/administration/Rolepermissions"
+import AuditLog from "./Features/administration/Auditlog"
+// System Settings 
+import Settings from './Features/settings/Settings'
 const App = () => {
   return (
     <Routes>
@@ -74,11 +82,20 @@ const App = () => {
         <Route path="/finance/payments" element={<Payments />}/>
         <Route path="/finance/currencies" element={<Currencies />}/>
         <Route path="/finance/exchange-rates" element={<ExchangeRates />}/>
+        {/* Administraion Part*/}
+        <Route path="/admin/users" element={<Users />}/>
+        <Route path="/admin/roles" element={<Roles />}/>
+        <Route path="/admin/permissions" element={<Permissions />}/>
+        <Route path="/admin/role-permissions" element={<RolePermissions />}/>
+        <Route path="/admin/audit-logs" element={<AuditLog />}/>
+        {/* System Settng Route*/}
+        <Route path="/settings" element={<Settings />}/>
       </Route>
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
-  );
-};
+  )
+}
+
 
 export default App;
