@@ -1,6 +1,5 @@
 
-
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Store,
   ReceiptText,
@@ -17,26 +16,16 @@ import {
   Info,
   Building2,
   FileText,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
-const initialSettings = {
-  id: 1,
-  shop_name: "CarpetPro",
-  logo: "",
-  phone: "0700000000",
-  address: "Herat, Afghanistan",
-  invoice_prefix: "INV",
-  invoice_footer: "Thank you for shopping with us!",
-  tax_rate: "0",
-  base_currency_id: "1",
-  updated_at: "2026-11-12T08:00:00",
-};
-
-const currencies = [
-  { id: "1", code: "AFN", name: "Afghan Afghani", symbol: "؋" },
-  { id: "2", code: "USD", name: "US Dollar", symbol: "$" },
-  { id: "3", code: "EUR", name: "Euro", symbol: "€" },
-];
+import {
+  getShopSettings,
+  getCurrencies,
+  createShopSettings,
+  updateShopSettings,
+} from "../services/settings/settingsSerivce";
 
 const translations = {
   en: {
@@ -59,9 +48,9 @@ const translations = {
     footer: "Invoice Footer",
     footerPlaceholder: "Enter a message to appear at the bottom of invoices",
     preview: "Invoice Preview",
-    previewDesc: "This is an example of how your invoice information may appear.",
+    previewDesc: "Preview your shop and invoice settings.",
     invoiceNumber: "Invoice Number",
-    sampleItem: "Carpet Item",
+    sampleItem: "Invoice Items",
     subtotal: "Subtotal",
     tax: "Tax",
     total: "Total",
@@ -77,7 +66,7 @@ const translations = {
     notUpdated: "Not updated yet",
     save: "Save Changes",
     reset: "Reset Changes",
-    saved: "Changes saved successfully (demo only).",
+    saved: "Changes saved successfully.",
     required: "Shop name is required.",
     invalidTax: "Tax rate must be between 0 and 100.",
     noLogo: "Your logo preview will appear here.",
@@ -86,6 +75,15 @@ const translations = {
     financial: "Finance",
     invoiceTab: "Invoices",
     settings: "Settings",
+    loading: "Loading settings...",
+    saving: "Saving...",
+    loadError: "Failed to load settings.",
+    saveError: "Failed to save settings.",
+    retry: "Try Again",
+    noCurrency: "No currencies available.",
+    noSettings: "No shop settings found. Enter your shop information and save.",
+    noRecord: "Not saved",
+    currencyCode: "Currency",
   },
   fa: {
     title: "تنظیمات فروشگاه",
@@ -107,9 +105,9 @@ const translations = {
     footer: "متن پایین فاکتور",
     footerPlaceholder: "پیامی برای نمایش در پایین فاکتور وارد کنید",
     preview: "پیش‌نمایش فاکتور",
-    previewDesc: "نمونه‌ای از نحوه نمایش اطلاعات فاکتور.",
+    previewDesc: "پیش‌نمایش تنظیمات فروشگاه و فاکتور.",
     invoiceNumber: "شماره فاکتور",
-    sampleItem: "قالین نمونه",
+    sampleItem: "اقلام فاکتور",
     subtotal: "مجموع فرعی",
     tax: "مالیات",
     total: "مجموع نهایی",
@@ -125,7 +123,7 @@ const translations = {
     notUpdated: "هنوز به‌روزرسانی نشده",
     save: "ذخیره تغییرات",
     reset: "بازنشانی تغییرات",
-    saved: "تغییرات با موفقیت ذخیره شد (صرفاً نمایشی).",
+    saved: "تغییرات با موفقیت ذخیره شد.",
     required: "نام فروشگاه الزامی است.",
     invalidTax: "نرخ مالیات باید بین صفر تا صد باشد.",
     noLogo: "پیش‌نمایش لوگوی شما در اینجا نمایش داده می‌شود.",
@@ -134,6 +132,15 @@ const translations = {
     financial: "مالی",
     invoiceTab: "فاکتور",
     settings: "تنظیمات",
+    loading: "در حال دریافت تنظیمات...",
+    saving: "در حال ذخیره...",
+    loadError: "دریافت تنظیمات ناکام شد.",
+    saveError: "ذخیره تنظیمات ناکام شد.",
+    retry: "تلاش دوباره",
+    noCurrency: "هیچ ارزی موجود نیست.",
+    noSettings: "تنظیمات فروشگاه پیدا نشد. اطلاعات فروشگاه را وارد و ذخیره کنید.",
+    noRecord: "ذخیره نشده",
+    currencyCode: "واحد پول",
   },
   ps: {
     title: "د هټۍ تنظیمات",
@@ -155,9 +162,9 @@ const translations = {
     footer: "د بل لاندې متن",
     footerPlaceholder: "د بل په پای کې د ښودلو لپاره پیغام ولیکئ",
     preview: "د بل مخکتنه",
-    previewDesc: "د بل د معلوماتو د ښودلو یوه بېلګه.",
+    previewDesc: "د هټۍ او بل د تنظیماتو مخکتنه.",
     invoiceNumber: "د بل شمېره",
-    sampleItem: "د قالین بېلګه",
+    sampleItem: "د بل توکي",
     subtotal: "فرعي مجموعه",
     tax: "مالیه",
     total: "ټوله مجموعه",
@@ -173,7 +180,7 @@ const translations = {
     notUpdated: "تر اوسه نه دي تازه شوي",
     save: "بدلونونه خوندي کړئ",
     reset: "بدلونونه بېرته راګرځول",
-    saved: "بدلونونه په بریالیتوب خوندي شول (یوازې نمایشي).",
+    saved: "بدلونونه په بریالیتوب خوندي شول.",
     required: "د هټۍ نوم اړین دی.",
     invalidTax: "د مالیې کچه باید له صفر څخه تر سلو پورې وي.",
     noLogo: "ستاسو د لوګو مخکتنه به دلته ښکاره شي.",
@@ -182,6 +189,15 @@ const translations = {
     financial: "مالي",
     invoiceTab: "بلونه",
     settings: "تنظیمات",
+    loading: "د تنظیماتو معلومات ترلاسه کېږي...",
+    saving: "خوندي کېږي...",
+    loadError: "د تنظیماتو ترلاسه کول ناکام شول.",
+    saveError: "د تنظیماتو خوندي کول ناکام شول.",
+    retry: "بیا هڅه وکړئ",
+    noCurrency: "اسعار شتون نه لري.",
+    noSettings: "د هټۍ تنظیمات ونه موندل شول. معلومات ولیکئ او خوندي یې کړئ.",
+    noRecord: "خوندي شوي نه دي",
+    currencyCode: "پیسه",
   },
 };
 
@@ -191,16 +207,31 @@ const inputClass =
 const labelClass =
   "mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300";
 
+const emptySettings = {
+  id: null,
+  shop_name: "",
+  logo: "",
+  phone: "",
+  address: "",
+  invoice_prefix: "",
+  invoice_footer: "",
+  tax_rate: "0",
+  base_currency_id: "",
+  updated_at: null,
+};
+
 function SectionHeading({ icon: Icon, title, description }) {
   return (
     <div className="mb-5 flex items-start gap-3">
       <div className="rounded-xl bg-blue-50 p-2.5 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
         <Icon size={20} />
       </div>
+
       <div>
         <h2 className="font-semibold text-slate-800 dark:text-slate-100">
           {title}
         </h2>
+
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {description}
         </p>
@@ -209,24 +240,124 @@ function SectionHeading({ icon: Icon, title, description }) {
   );
 }
 
+function getCurrencyName(currency) {
+  return currency?.name || currency?.currency_name || currency?.code || currency?.currency_code || "";
+}
+
+function getCurrencyCode(currency) {
+  return currency?.code || currency?.currency_code || "";
+}
+
+function getCurrencySymbol(currency) {
+  return currency?.symbol || currency?.currency_symbol || getCurrencyCode(currency);
+}
+
+function mapSettings(data) {
+  return {
+    ...emptySettings,
+    ...data,
+    tax_rate: String(data.tax_rate ?? 0),
+    base_currency_id: data.base_currency_id
+      ? String(data.base_currency_id)
+      : "",
+    logo: data.logo || "",
+  };
+}
+
 export default function Settings() {
   const lang = document.documentElement.lang || "en";
   const t = translations[lang] || translations.en;
   const isRtl = lang === "fa" || lang === "ps";
 
-  const [settings, setSettings] = useState(initialSettings);
-  const [savedSettings, setSavedSettings] = useState(initialSettings);
+  const [settings, setSettings] = useState(emptySettings);
+  const [savedSettings, setSavedSettings] = useState(emptySettings);
+  const [currencies, setCurrencies] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
   const [activeTab, setActiveTab] = useState("general");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const loadSettings = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const [settingsData, currenciesData] = await Promise.all([
+        getShopSettings(),
+        getCurrencies(),
+      ]);
+
+      setCurrencies(currenciesData);
+
+      if (settingsData.length > 0) {
+        const currentSettings = mapSettings(settingsData[0]);
+
+        setSettings(currentSettings);
+        setSavedSettings(currentSettings);
+      } else {
+        const firstCurrency = currenciesData[0];
+
+        const newSettings = {
+          ...emptySettings,
+          base_currency_id: firstCurrency
+            ? String(firstCurrency.id)
+            : "",
+        };
+
+        setSettings(newSettings);
+        setSavedSettings(newSettings);
+      }
+    } catch (err) {
+      console.error("Settings loading error:", err);
+      setError(err.message || t.loadError);
+    } finally {
+      setLoading(false);
+    }
+  }, [t.loadError]);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
   const updateField = (field, value) => {
-    setSettings((prev) => ({ ...prev, [field]: value }));
+    setSettings((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+
     setMessage("");
     setError("");
   };
 
-  const handleSave = () => {
+  const selectedCurrency = useMemo(
+    () =>
+      currencies.find(
+        (currency) =>
+          Number(currency.id) === Number(settings.base_currency_id)
+      ),
+    [currencies, settings.base_currency_id]
+  );
+
+  const formatDate = (date) => {
+    if (!date) return t.notUpdated;
+
+    const parsedDate = new Date(date);
+
+    if (Number.isNaN(parsedDate.getTime())) return t.notUpdated;
+
+    return parsedDate.toLocaleString(
+      lang === "fa" ? "fa-IR" : lang === "ps" ? "ps-AF" : "en-US",
+      {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }
+    );
+  };
+
+  const handleSave = async () => {
     if (!settings.shop_name.trim()) {
       setError(t.required);
       setMessage("");
@@ -241,33 +372,47 @@ export default function Settings() {
       return;
     }
 
-    const updated = {
-      ...settings,
-      updated_at: new Date().toISOString(),
+    if (!settings.base_currency_id) {
+      setError(t.noCurrency);
+      setMessage("");
+      return;
+    }
+
+    const payload = {
+      shop_name: settings.shop_name.trim(),
+      phone: settings.phone || null,
+      address: settings.address || null,
+      invoice_prefix: settings.invoice_prefix || null,
+      invoice_footer: settings.invoice_footer || null,
+      tax_rate: tax,
+      base_currency_id: Number(settings.base_currency_id),
     };
 
-    setSettings(updated);
-    setSavedSettings(updated);
-    setMessage(t.saved);
+    setSaving(true);
     setError("");
+    setMessage("");
+
+    try {
+      if (settings.id) {
+        await updateShopSettings(settings.id, payload);
+      } else {
+        await createShopSettings(payload);
+      }
+
+      await loadSettings();
+      setMessage(t.saved);
+    } catch (err) {
+      console.error("Settings saving error:", err);
+      setError(err.message || t.saveError);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleReset = () => {
-    setSettings(savedSettings);
+    setSettings({ ...savedSettings });
     setMessage("");
     setError("");
-  };
-
-  const formatDate = (date) => {
-    if (!date) return t.notUpdated;
-
-    return new Date(date).toLocaleString(
-      lang === "fa" ? "fa-IR" : lang === "ps" ? "ps-AF" : "en-US",
-      {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }
-    );
   };
 
   const tabs = [
@@ -276,9 +421,37 @@ export default function Settings() {
     { id: "financial", label: t.financial, icon: Wallet },
   ];
 
-  const selectedCurrency = currencies.find(
-    (currency) => currency.id === settings.base_currency_id
-  );
+  if (loading) {
+    return (
+      <div
+        dir={isRtl ? "rtl" : "ltr"}
+        className="flex min-h-[60vh] flex-col items-center justify-center gap-3 bg-slate-50 p-6 text-slate-600 dark:bg-slate-950 dark:text-slate-300"
+      >
+        <Loader2 size={35} className="animate-spin text-blue-600" />
+        <p>{t.loading}</p>
+      </div>
+    );
+  }
+
+  if (error && !currencies.length) {
+    return (
+      <div
+        dir={isRtl ? "rtl" : "ltr"}
+        className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center"
+      >
+        <AlertCircle size={40} className="text-red-500" />
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+
+        <button
+          type="button"
+          onClick={loadSettings}
+          className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          {t.retry}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -291,6 +464,7 @@ export default function Settings() {
           <div className="rounded-xl bg-blue-600 p-2.5 text-white">
             <Store size={22} />
           </div>
+
           <div>
             <h1 className="text-2xl font-bold">{t.title}</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -323,6 +497,13 @@ export default function Settings() {
           );
         })}
       </div>
+
+      {!settings.id && (
+        <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-500/10 dark:text-blue-300">
+          <Info size={19} className="mt-0.5 shrink-0" />
+          <p>{t.noSettings}</p>
+        </div>
+      )}
 
       {/* General Settings */}
       {activeTab === "general" && (
@@ -405,6 +586,7 @@ export default function Settings() {
           {/* Logo Preview */}
           <aside className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <h3 className="font-semibold">{t.logo}</h3>
+
             <div className="mt-5 flex min-h-52 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/50">
               {settings.logo ? (
                 <img
@@ -420,9 +602,11 @@ export default function Settings() {
                   <Store size={36} />
                 </div>
               )}
+
               <p className="mt-3 text-center text-sm font-semibold">
                 {settings.shop_name || t.shopName}
               </p>
+
               <p className="mt-1 text-center text-xs text-slate-400">
                 {t.noLogo}
               </p>
@@ -491,13 +675,16 @@ export default function Settings() {
                   <h3 className="break-words text-lg font-bold">
                     {settings.shop_name || t.shopName}
                   </h3>
+
                   <p className="mt-1 text-xs text-slate-500">
                     {settings.phone}
                   </p>
+
                   <p className="mt-1 text-xs text-slate-500">
                     {settings.address}
                   </p>
                 </div>
+
                 {settings.logo && (
                   <img
                     src={settings.logo}
@@ -510,40 +697,31 @@ export default function Settings() {
               <div className="py-4">
                 <p className="text-xs text-slate-500">{t.invoiceNumber}</p>
                 <p className="mt-1 font-bold">
-                  {settings.invoice_prefix || "INV"}-00001
+                  {settings.invoice_prefix || "-"}- 
                 </p>
               </div>
 
               <div className="border-y border-slate-200 py-3 dark:border-slate-700">
-                <div className="flex justify-between text-sm">
-                  <span>{t.sampleItem}</span>
-                  <span>10,000</span>
-                </div>
+                <p className="text-sm text-slate-500">{t.sampleItem}</p>
+                <p className="mt-2 text-sm text-slate-400">—</p>
               </div>
 
               <div className="space-y-2 py-4 text-sm">
                 <div className="flex justify-between">
                   <span className="text-slate-500">{t.subtotal}</span>
-                  <span>10,000</span>
+                  <span>—</span>
                 </div>
+
                 <div className="flex justify-between">
                   <span className="text-slate-500">
                     {t.tax} ({settings.tax_rate || 0}%)
                   </span>
-                  <span>
-                    {(10000 * (Number(settings.tax_rate) || 0)) / 100}
-                  </span>
+                  <span>—</span>
                 </div>
+
                 <div className="flex justify-between border-t border-slate-200 pt-3 font-bold dark:border-slate-700">
                   <span>{t.total}</span>
-                  <span>
-                    {(
-                      10000 +
-                      (10000 * (Number(settings.tax_rate) || 0)) / 100
-                    ).toLocaleString()}
-                    {" "}
-                    {selectedCurrency?.symbol}
-                  </span>
+                  <span>{getCurrencySymbol(selectedCurrency)}</span>
                 </div>
               </div>
 
@@ -574,6 +752,7 @@ export default function Settings() {
                     isRtl ? "right-3" : "left-3"
                   }`}
                 />
+
                 <input
                   type="number"
                   min="0"
@@ -584,6 +763,7 @@ export default function Settings() {
                   className={`${inputClass} ${isRtl ? "pr-10" : "pl-10"}`}
                 />
               </div>
+
               <p className="mt-2 text-xs text-slate-400">
                 {t.financeDesc}
               </p>
@@ -598,6 +778,7 @@ export default function Settings() {
                     isRtl ? "right-3" : "left-3"
                   }`}
                 />
+
                 <select
                   value={settings.base_currency_id}
                   onChange={(e) =>
@@ -605,18 +786,30 @@ export default function Settings() {
                   }
                   className={`${inputClass} ${isRtl ? "pr-10" : "pl-10"}`}
                 >
+                  <option value="">{t.currency}</option>
+
                   {currencies.map((currency) => (
                     <option key={currency.id} value={currency.id}>
-                      {currency.code} - {currency.name}
+                      {getCurrencyCode(currency)
+                        ? `${getCurrencyCode(currency)} - `
+                        : ""}
+                      {getCurrencyName(currency)}
                     </option>
                   ))}
                 </select>
               </div>
+
               <p className="mt-2 text-xs text-slate-400">
                 {t.currencyDesc}
               </p>
             </div>
           </div>
+
+          {currencies.length === 0 && (
+            <p className="mt-4 text-sm text-amber-600">
+              {t.noCurrency}
+            </p>
+          )}
         </section>
       )}
 
@@ -631,8 +824,11 @@ export default function Settings() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
             <p className="text-xs text-slate-500">{t.settingId}</p>
-            <p className="mt-2 font-semibold">#{settings.id}</p>
+            <p className="mt-2 font-semibold">
+              {settings.id ? `#${settings.id}` : t.noRecord}
+            </p>
           </div>
+
           <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
             <p className="text-xs text-slate-500">{t.lastUpdated}</p>
             <p className="mt-2 text-sm font-semibold">
@@ -660,7 +856,8 @@ export default function Settings() {
         <button
           type="button"
           onClick={handleReset}
-          className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+          disabled={saving}
+          className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
         >
           <RotateCcw size={17} />
           {t.reset}
@@ -669,10 +866,15 @@ export default function Settings() {
         <button
           type="button"
           onClick={handleSave}
-          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          disabled={saving || currencies.length === 0}
+          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <Save size={17} />
-          {t.save}
+          {saving ? (
+            <Loader2 size={17} className="animate-spin" />
+          ) : (
+            <Save size={17} />
+          )}
+          {saving ? t.saving : t.save}
         </button>
       </div>
     </div>

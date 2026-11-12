@@ -1,6 +1,5 @@
 
-
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Plus,
@@ -19,7 +18,15 @@ import {
   Tag,
   AlertCircle,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
+
+import {
+  getExpenseCategories,
+  createExpenseCategory,
+  updateExpenseCategory,
+  deleteExpenseCategory,
+} from "../services/finance/expenseCategoryService";
 
 const translations = {
   en: {
@@ -45,8 +52,6 @@ const translations = {
     delete: "Delete",
     edit: "Edit",
     confirmDelete: "Are you sure you want to delete this category?",
-    required: "Category name is required.",
-    duplicate: "A category with this name already exists.",
     noCategories: "No categories found",
     noCategoriesDesc: "Start by adding your first expense category.",
     showing: "Showing",
@@ -68,6 +73,13 @@ const translations = {
     deleteWarning: "This action cannot be undone.",
     cancelDelete: "Keep Category",
     confirm: "Yes, Delete",
+    loading: "Loading categories...",
+    loadError: "Failed to load categories.",
+    saveError: "Failed to save category.",
+    deleteError: "Failed to delete category.",
+    serverError: "Something went wrong. Please try again.",
+    retry: "Try Again",
+    load: "Refresh",
   },
 
   fa: {
@@ -93,8 +105,6 @@ const translations = {
     delete: "حذف",
     edit: "ویرایش",
     confirmDelete: "آیا مطمئن هستید که این دسته‌بندی حذف شود؟",
-    required: "نام دسته‌بندی ضروری است.",
-    duplicate: "این نام دسته‌بندی قبلاً ثبت شده است.",
     noCategories: "دسته‌بندی یافت نشد",
     noCategoriesDesc: "با افزودن اولین دسته‌بندی مصارف شروع کنید.",
     showing: "نمایش",
@@ -116,6 +126,13 @@ const translations = {
     deleteWarning: "این عمل قابل برگشت نیست.",
     cancelDelete: "حفظ دسته‌بندی",
     confirm: "بلی، حذف شود",
+    loading: "در حال دریافت دسته‌بندی‌ها...",
+    loadError: "دریافت دسته‌بندی‌ها ناموفق بود.",
+    saveError: "ذخیره دسته‌بندی ناموفق بود.",
+    deleteError: "حذف دسته‌بندی ناموفق بود.",
+    serverError: "مشکلی رخ داد. دوباره تلاش کنید.",
+    retry: "تلاش دوباره",
+    load: "بارگذاری مجدد",
   },
 
   ps: {
@@ -141,8 +158,6 @@ const translations = {
     delete: "ړنګول",
     edit: "سمول",
     confirmDelete: "ایا ډاډه یاست چې دا کټګوري ړنګه کړئ؟",
-    required: "د کټګورۍ نوم اړین دی.",
-    duplicate: "دا کټګوري مخکې ثبت شوې ده.",
     noCategories: "کومه کټګوري ونه موندل شوه",
     noCategoriesDesc: "د خپلې لومړۍ کټګورۍ په اضافه کولو پیل وکړئ.",
     showing: "ښودل",
@@ -164,43 +179,23 @@ const translations = {
     deleteWarning: "دا کړنه بېرته نه شي راګرځېدای.",
     cancelDelete: "کټګوري وساتئ",
     confirm: "هو، ړنګ یې کړئ",
+    loading: "کټګورۍ ترلاسه کېږي...",
+    loadError: "د کټګوریو ترلاسه کول ناکام شول.",
+    saveError: "د کټګورۍ ثبتول ناکام شول.",
+    deleteError: "د کټګورۍ حذف ناکام شو.",
+    serverError: "یوه ستونزه رامنځته شوه. بیا هڅه وکړئ.",
+    retry: "بیا هڅه وکړئ",
+    load: "بیا تازه کول",
   },
 };
-
-const initialCategories = [
-  {
-    id: 1,
-    name: "Rent",
-    description: "Shop and warehouse rental expenses.",
-  },
-  {
-    id: 2,
-    name: "Transport",
-    description: "Transportation and delivery expenses.",
-  },
-  {
-    id: 3,
-    name: "Salary",
-    description: "Employee salary and staff payments.",
-  },
-  {
-    id: 4,
-    name: "Utilities",
-    description: "Electricity, water and other utility bills.",
-  },
-  {
-    id: 5,
-    name: "Repair",
-    description: "Maintenance and repair expenses.",
-  },
-];
 
 const initialForm = {
   name: "",
   description: "",
 };
 
-const normalizeName = (value) => value.trim().toLocaleLowerCase();
+const normalizeName = (value) =>
+  value.trim().toLocaleLowerCase();
 
 export default function ExpenseCategory() {
   const { i18n } = useTranslation();
@@ -213,7 +208,7 @@ export default function ExpenseCategory() {
   const t = translations[language] || translations.en;
   const isRTL = ["fa", "ps"].includes(language);
 
-  const [categories, setCategories] = useState(initialCategories);
+  const [categories, setCategories] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -222,15 +217,48 @@ export default function ExpenseCategory() {
   const [page, setPage] = useState(1);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const pageSize = 6;
 
+  // Fetch categories from backend
+  const fetchCategories = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const data = await getExpenseCategories();
+
+      setCategories(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Expense categories error:", err);
+      setError(t.loadError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const showMessage = (message) => {
+    setToast(message);
+
+    window.setTimeout(() => {
+      setToast("");
+    }, 3000);
+  };
+
+  // Search
   const filteredCategories = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return categories.filter(
       (category) =>
-        category.name.toLowerCase().includes(query) ||
+        category.name?.toLowerCase().includes(query) ||
         (category.description || "").toLowerCase().includes(query)
     );
   }, [categories, search]);
@@ -249,13 +277,10 @@ export default function ExpenseCategory() {
     (category) => category.description?.trim()
   ).length;
 
-  const withoutDescription = categories.length - withDescription;
+  const withoutDescription =
+    categories.length - withDescription;
 
-  const showMessage = (message) => {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 3000);
-  };
-
+  // Modal functions
   const openAddModal = () => {
     setForm(initialForm);
     setEditingId(null);
@@ -265,22 +290,26 @@ export default function ExpenseCategory() {
 
   const openEditModal = (category) => {
     setForm({
-      name: category.name,
+      name: category.name || "",
       description: category.description || "",
     });
+
     setEditingId(category.id);
     setError("");
     setShowModal(true);
   };
 
   const closeModal = () => {
+    if (saving) return;
+
     setShowModal(false);
     setEditingId(null);
     setForm(initialForm);
     setError("");
   };
 
-  const handleSubmit = (e) => {
+  // Save category
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const name = form.name.trim();
@@ -302,41 +331,62 @@ export default function ExpenseCategory() {
       return;
     }
 
-    if (editingId !== null) {
-      setCategories((prev) =>
-        prev.map((category) =>
-          category.id === editingId
-            ? { ...category, name, description }
-            : category
-        )
-      );
+    try {
+      setSaving(true);
+      setError("");
 
-      showMessage(t.categoryUpdated);
-    } else {
-      const newCategory = {
-        id: Date.now(),
+      const data = {
         name,
-        description,
+        description: description || null,
       };
 
-      setCategories((prev) => [newCategory, ...prev]);
-      setPage(1);
-      showMessage(t.categorySaved);
-    }
+      if (editingId !== null) {
+        await updateExpenseCategory(editingId, data);
+        showMessage(t.categoryUpdated);
+      } else {
+        await createExpenseCategory(data);
+        showMessage(t.categorySaved);
+      }
 
-    closeModal();
+      closeModal();
+      setPage(1);
+      await fetchCategories();
+    } catch (err) {
+      console.error("Save category error:", err);
+
+      setError(
+        err.response?.data?.code === "23505"
+          ? t.duplicateName
+          : t.saveError
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = () => {
-    if (!deleteTarget) return;
+  // Delete category
+  const handleDelete = async () => {
+    if (!deleteTarget || deleting) return;
 
-    setCategories((prev) =>
-      prev.filter((category) => category.id !== deleteTarget.id)
-    );
+    try {
+      setDeleting(true);
 
-    setDeleteTarget(null);
-    setPage(1);
-    showMessage(t.categoryDeleted);
+      await deleteExpenseCategory(deleteTarget.id);
+
+      setDeleteTarget(null);
+      setPage(1);
+
+      showMessage(t.categoryDeleted);
+
+      await fetchCategories();
+    } catch (err) {
+      console.error("Delete category error:", err);
+
+      setDeleteTarget(null);
+      showMessage(t.deleteError);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const clearSearch = () => {
@@ -359,31 +409,59 @@ export default function ExpenseCategory() {
       label: t.total,
       value: categories.length,
       icon: Tags,
-      color:
-        "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
+      color: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
     },
     {
       label: t.withDescription,
       value: withDescription,
       icon: FileText,
-      color:
-        "bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400",
+      color: "bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400",
     },
     {
       label: t.withoutDescription,
       value: withoutDescription,
       icon: FolderOpen,
-      color:
-        "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400",
+      color: "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400",
     },
     {
       label: t.records,
       value: categories.length,
       icon: Layers,
-      color:
-        "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400",
+      color: "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400",
     },
   ];
+
+  const Pagination = () => (
+    <div className="flex flex-col items-center justify-between gap-3 border-t border-gray-100 px-4 py-4 dark:border-gray-800 sm:flex-row">
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        {t.showing} {(page - 1) * pageSize + 1} -{" "}
+        {Math.min(page * pageSize, filteredCategories.length)} {t.of}{" "}
+        {filteredCategories.length}
+      </p>
+
+      <div className="flex items-center gap-2">
+        <button
+          disabled={page === 1}
+          onClick={() => changePage(page - 1)}
+          className="rounded-lg border border-gray-200 p-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700"
+        >
+          {isRTL ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
+        </button>
+
+        <span className="text-sm font-medium">
+          {page} / {totalPages}
+        </span>
+
+        <button
+          disabled={page === totalPages}
+          onClick={() => changePage(page + 1)}
+          className="rounded-lg border border-gray-200 p-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700"
+        >
+          {isRTL ? <ChevronLeft size={17} /> : <ChevronRight size={17} />}
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -396,18 +474,30 @@ export default function ExpenseCategory() {
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             {t.title}
           </h1>
+
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {t.subtitle}
           </p>
         </div>
 
-        <button
-          onClick={openAddModal}
-          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-        >
-          <Plus size={18} />
-          {t.add}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={fetchCategories}
+            disabled={loading}
+            className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
+            {t.load}
+          </button>
+
+          <button
+            onClick={openAddModal}
+            className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+          >
+            <Plus size={18} />
+            {t.add}
+          </button>
+        </div>
       </div>
 
       {/* Statistics */}
@@ -425,7 +515,10 @@ export default function ExpenseCategory() {
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     {stat.label}
                   </p>
-                  <h2 className="mt-2 text-2xl font-bold">{stat.value}</h2>
+
+                  <h2 className="mt-2 text-2xl font-bold">
+                    {loading ? "—" : stat.value}
+                  </h2>
                 </div>
 
                 <div className={`rounded-xl p-3 ${stat.color}`}>
@@ -460,9 +553,7 @@ export default function ExpenseCategory() {
                 setPage(1);
               }}
               placeholder={t.search}
-              className={`${inputClass} ${
-                isRTL ? "pr-10" : "pl-10"
-              }`}
+              className={`${inputClass} ${isRTL ? "pr-10" : "pl-10"}`}
             />
           </div>
 
@@ -476,235 +567,223 @@ export default function ExpenseCategory() {
         </div>
       </div>
 
-      {/* Filtered count */}
+      {/* Filtered Count */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3 dark:border-blue-900/50 dark:bg-blue-500/5">
         <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
           {t.filtered}
         </span>
 
         <span className="text-lg font-bold text-blue-700 dark:text-blue-300">
-          {filteredCategories.length}
+          {loading ? "—" : filteredCategories.length}
         </span>
       </div>
 
-      {/* Desktop Table */}
-      <div className="hidden overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900 md:block">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[650px] text-sm">
-            <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-              <tr>
-                {[t.name, t.description, t.actions].map((heading) => (
-                  <th
-                    key={heading}
-                    className="whitespace-nowrap px-5 py-4 text-start font-semibold"
-                  >
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {paginatedCategories.map((category) => (
-                <tr
-                  key={category.id}
-                  className="transition hover:bg-gray-50/80 dark:hover:bg-gray-800/50"
-                >
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
-                        <Tag size={19} />
-                      </div>
-
-                      <div>
-                        <p className="font-semibold text-gray-800 dark:text-gray-100">
-                          {category.name}
-                        </p>
-                        <p className="mt-0.5 text-xs text-gray-400">
-                          ID: {category.id}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="max-w-[400px] px-5 py-4">
-                    <p className="truncate text-gray-500 dark:text-gray-400">
-                      {category.description || t.noDescription}
-                    </p>
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => openEditModal(category)}
-                        title={t.edit}
-                        className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-500/10"
-                      >
-                        <Pencil size={16} />
-                      </button>
-
-                      <button
-                        onClick={() => setDeleteTarget(category)}
-                        title={t.delete}
-                        className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-500/10"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Loading */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white py-16 dark:border-gray-800 dark:bg-gray-900">
+          <Loader2 size={35} className="animate-spin text-blue-600" />
+          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+            {t.loading}
+          </p>
         </div>
+      )}
 
-        {filteredCategories.length === 0 && (
-          <div className="px-4 py-14 text-center">
-            <Tags size={35} className="mx-auto mb-3 text-gray-300" />
-            <h3 className="font-semibold">{t.noCategories}</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {t.noCategoriesDesc}
-            </p>
-          </div>
-        )}
+      {/* Error */}
+      {!loading && error && !showModal && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900/50 dark:bg-red-500/10">
+          <AlertCircle size={32} className="mx-auto text-red-500" />
 
-        {/* Pagination */}
-        {filteredCategories.length > 0 && (
-          <div className="flex flex-col items-center justify-between gap-3 border-t border-gray-100 px-4 py-4 dark:border-gray-800 sm:flex-row">
-            <p className="text-sm text-gray-500">
-              {t.showing} {(page - 1) * pageSize + 1} -{" "}
-              {Math.min(page * pageSize, filteredCategories.length)} {t.of}{" "}
-              {filteredCategories.length}
-            </p>
+          <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
+            {error}
+          </p>
 
-            <div className="flex items-center gap-2">
-              <button
-                disabled={page === 1}
-                onClick={() => changePage(page - 1)}
-                className="rounded-lg border border-gray-200 p-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700"
-              >
-                {isRTL ? (
-                  <ChevronRight size={17} />
-                ) : (
-                  <ChevronLeft size={17} />
-                )}
-              </button>
-
-              <span className="text-sm font-medium">
-                {page} / {totalPages}
-              </span>
-
-              <button
-                disabled={page === totalPages}
-                onClick={() => changePage(page + 1)}
-                className="rounded-lg border border-gray-200 p-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700"
-              >
-                {isRTL ? (
-                  <ChevronLeft size={17} />
-                ) : (
-                  <ChevronRight size={17} />
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Mobile Cards */}
-      <div className="space-y-3 md:hidden">
-        {paginatedCategories.map((category) => (
-          <div
-            key={category.id}
-            className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+          <button
+            onClick={fetchCategories}
+            className="mt-4 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
-                  <Tag size={20} />
+            {t.retry}
+          </button>
+        </div>
+      )}
+
+      {/* Categories Table */}
+      {!loading && !error && (
+        <>
+          <div className="hidden overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900 md:block">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[650px] text-sm">
+                <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                  <tr>
+                    {[t.name, t.description, t.actions].map((heading) => (
+                      <th
+                        key={heading}
+                        className="whitespace-nowrap px-5 py-4 text-start font-semibold"
+                      >
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {paginatedCategories.map((category) => (
+                    <tr
+                      key={category.id}
+                      className="transition hover:bg-gray-50/80 dark:hover:bg-gray-800/50"
+                    >
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                            <Tag size={19} />
+                          </div>
+
+                          <div>
+                            <p className="font-semibold text-gray-800 dark:text-gray-100">
+                              {category.name}
+                            </p>
+
+                            <p className="mt-0.5 text-xs text-gray-400">
+                              ID: {category.id}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="max-w-[400px] px-5 py-4">
+                        <p className="truncate text-gray-500 dark:text-gray-400">
+                          {category.description || t.noDescription}
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openEditModal(category)}
+                            title={t.edit}
+                            className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                          >
+                            <Pencil size={16} />
+                          </button>
+
+                          <button
+                            onClick={() => setDeleteTarget(category)}
+                            title={t.delete}
+                            className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-500/10"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {filteredCategories.length === 0 && (
+              <div className="px-4 py-14 text-center">
+                <Tags size={35} className="mx-auto mb-3 text-gray-300" />
+                <h3 className="font-semibold">{t.noCategories}</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {t.noCategoriesDesc}
+                </p>
+              </div>
+            )}
+
+            {filteredCategories.length > 0 && <Pagination />}
+          </div>
+
+          {/* Mobile Cards */}
+          <div className="space-y-3 md:hidden">
+            {paginatedCategories.map((category) => (
+              <div
+                key={category.id}
+                className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                      <Tag size={20} />
+                    </div>
+
+                    <div className="min-w-0">
+                      <h3 className="truncate font-semibold">
+                        {category.name}
+                      </h3>
+
+                      <p className="mt-1 text-xs text-gray-400">
+                        ID: {category.id}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      onClick={() => openEditModal(category)}
+                      title={t.edit}
+                      className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                    >
+                      <Pencil size={17} />
+                    </button>
+
+                    <button
+                      onClick={() => setDeleteTarget(category)}
+                      title={t.delete}
+                      className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
                 </div>
 
-                <div className="min-w-0">
-                  <h3 className="truncate font-semibold">
-                    {category.name}
-                  </h3>
-                  <p className="mt-1 text-xs text-gray-400">
-                    ID: {category.id}
+                <div className="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {t.description}
+                  </p>
+
+                  <p className="mt-1 break-words text-sm text-gray-700 dark:text-gray-300">
+                    {category.description || t.noDescription}
                   </p>
                 </div>
               </div>
+            ))}
 
-              <div className="flex shrink-0 gap-1">
+            {filteredCategories.length === 0 && (
+              <div className="rounded-2xl border border-gray-100 bg-white px-4 py-12 text-center dark:border-gray-800 dark:bg-gray-900">
+                <Tags size={35} className="mx-auto mb-3 text-gray-300" />
+                <h3 className="font-semibold">{t.noCategories}</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {t.noCategoriesDesc}
+                </p>
+              </div>
+            )}
+
+            {filteredCategories.length > 0 && (
+              <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
                 <button
-                  onClick={() => openEditModal(category)}
-                  title={t.edit}
-                  className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                  disabled={page === 1}
+                  onClick={() => changePage(page - 1)}
+                  className="rounded-lg border border-gray-200 p-2 disabled:opacity-40 dark:border-gray-700"
                 >
-                  <Pencil size={17} />
+                  {isRTL ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
                 </button>
 
+                <span className="text-sm font-medium">
+                  {page} / {totalPages}
+                </span>
+
                 <button
-                  onClick={() => setDeleteTarget(category)}
-                  title={t.delete}
-                  className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-500/10"
+                  disabled={page === totalPages}
+                  onClick={() => changePage(page + 1)}
+                  className="rounded-lg border border-gray-200 p-2 disabled:opacity-40 dark:border-gray-700"
                 >
-                  <Trash2 size={17} />
+                  {isRTL ? <ChevronLeft size={17} /> : <ChevronRight size={17} />}
                 </button>
               </div>
-            </div>
-
-            <div className="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {t.description}
-              </p>
-              <p className="mt-1 break-words text-sm text-gray-700 dark:text-gray-300">
-                {category.description || t.noDescription}
-              </p>
-            </div>
+            )}
           </div>
-        ))}
-
-        {filteredCategories.length === 0 && (
-          <div className="rounded-2xl border border-gray-100 bg-white px-4 py-12 text-center dark:border-gray-800 dark:bg-gray-900">
-            <Tags size={35} className="mx-auto mb-3 text-gray-300" />
-            <h3 className="font-semibold">{t.noCategories}</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {t.noCategoriesDesc}
-            </p>
-          </div>
-        )}
-
-        {filteredCategories.length > 0 && (
-          <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-            <button
-              disabled={page === 1}
-              onClick={() => changePage(page - 1)}
-              className="rounded-lg border border-gray-200 p-2 disabled:opacity-40 dark:border-gray-700"
-            >
-              {isRTL ? (
-                <ChevronRight size={17} />
-              ) : (
-                <ChevronLeft size={17} />
-              )}
-            </button>
-
-            <span className="text-sm font-medium">
-              {page} / {totalPages}
-            </span>
-
-            <button
-              disabled={page === totalPages}
-              onClick={() => changePage(page + 1)}
-              className="rounded-lg border border-gray-200 p-2 disabled:opacity-40 dark:border-gray-700"
-            >
-              {isRTL ? (
-                <ChevronLeft size={17} />
-              ) : (
-                <ChevronRight size={17} />
-              )}
-            </button>
-          </div>
-        )}
-      </div>
+        </>
+      )}
 
       {/* Add / Edit Modal */}
       {showModal && (
@@ -720,6 +799,7 @@ export default function ExpenseCategory() {
                 <h2 className="text-lg font-bold">
                   {editingId !== null ? t.editTitle : t.addTitle}
                 </h2>
+
                 <p className="mt-1 text-xs text-gray-500">
                   {t.categoryDetails}
                 </p>
@@ -727,6 +807,7 @@ export default function ExpenseCategory() {
 
               <button
                 onClick={closeModal}
+                disabled={saving}
                 title={t.close}
                 className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 dark:hover:bg-gray-800"
               >
@@ -765,6 +846,7 @@ export default function ExpenseCategory() {
 
                 <textarea
                   rows={4}
+                  maxLength={1000}
                   value={form.description}
                   onChange={(e) =>
                     setForm({
@@ -792,17 +874,28 @@ export default function ExpenseCategory() {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                  disabled={saving}
+                  className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   {t.cancel}
                 </button>
 
                 <button
                   type="submit"
-                  className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                  disabled={saving}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <CheckCircle2 size={17} />
-                  {editingId !== null ? t.update : t.save}
+                  {saving ? (
+                    <Loader2 size={17} className="animate-spin" />
+                  ) : (
+                    <CheckCircle2 size={17} />
+                  )}
+
+                  {saving
+                    ? "..."
+                    : editingId !== null
+                      ? t.update
+                      : t.save}
                 </button>
               </div>
             </form>
@@ -832,16 +925,21 @@ export default function ExpenseCategory() {
 
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
+                disabled={deleting}
                 onClick={() => setDeleteTarget(null)}
-                className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 {t.cancelDelete}
               </button>
 
               <button
+                disabled={deleting}
                 onClick={handleDelete}
-                className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700"
+                className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
               >
+                {deleting && (
+                  <Loader2 size={16} className="animate-spin" />
+                )}
                 {t.confirm}
               </button>
             </div>

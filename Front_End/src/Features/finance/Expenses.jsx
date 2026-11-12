@@ -1,5 +1,5 @@
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Plus, Search, Pencil, Trash2, X, Wallet,
@@ -7,6 +7,13 @@ import {
   Filter, ChevronLeft, ChevronRight, ArrowDownUp,
   RefreshCw
 } from "lucide-react";
+
+import {
+  getExpenses,
+  createExpense,
+  updateExpense,
+  deleteExpense
+} from "../services/finance/expenseService";
 
 const translations = {
   en: {
@@ -68,6 +75,10 @@ const translations = {
     invalidRate: "Exchange rate must be greater than zero",
     noDescription: "No description",
     allTime: "All Time",
+    loading: "Loading expenses...",
+    loadError: "Failed to load expenses",
+    saveError: "Failed to save expense",
+    deleteError: "Failed to delete expense",
   },
 
   fa: {
@@ -129,6 +140,10 @@ const translations = {
     invalidRate: "نرخ تبادله باید بیشتر از صفر باشد",
     noDescription: "بدون توضیحات",
     allTime: "تمام مدت",
+    loading: "در حال دریافت مصارف...",
+    loadError: "دریافت مصارف ناموفق بود",
+    saveError: "ذخیره مصرف ناموفق بود",
+    deleteError: "حذف مصرف ناموفق بود",
   },
 
   ps: {
@@ -189,7 +204,10 @@ const translations = {
     dateRequired: "د لګښت نېټه اړینه ده",
     invalidRate: "د تبادلې نرخ باید له صفر څخه لوړ وي",
     noDescription: "تشریح نشته",
-    allTime: "ټوله موده",
+    loading: "لګښتونه ترلاسه کېږي...",
+    loadError: "د لګښتونو ترلاسه کول ناکام شول",
+    saveError: "د لګښت ثبتول ناکام شول",
+    deleteError: "د لګښت ړنګول ناکام شول",
   },
 };
 
@@ -243,12 +261,37 @@ export default function Expense() {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const pageSize = 6;
 
+  // Load expenses from Backend
+  const loadExpenses = async () => {
+    try {
+      setLoading(true);
+      const data = await getExpenses();
+      setExpenses(Array.isArray(data) ? data : []);
+      setError("");
+    } catch (error) {
+      console.error("Failed to load expenses:", error);
+      setError(error.response?.data?.message || t.loadError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadExpenses();
+  }, []);
+
   const getCategoryName = (id) => {
-    const category = categories.find((item) => item.id === Number(id));
+    const category = categories.find(
+      (item) => item.id === Number(id)
+    );
+
     if (!category) return "-";
+
     const key = category.name.toLowerCase();
     return t[key] || category.name;
   };
@@ -263,17 +306,19 @@ export default function Expense() {
 
       const matchesCategory =
         !categoryFilter ||
-        expense.category_id === Number(categoryFilter);
+        Number(expense.category_id) === Number(categoryFilter);
 
       const matchesCurrency =
         !currencyFilter ||
-        expense.currency_id === Number(currencyFilter);
+        Number(expense.currency_id) === Number(currencyFilter);
+
+      const expenseDate = String(expense.expense_date).slice(0, 10);
 
       const matchesFrom =
-        !fromDate || expense.expense_date >= fromDate;
+        !fromDate || expenseDate >= fromDate;
 
       const matchesTo =
-        !toDate || expense.expense_date <= toDate;
+        !toDate || expenseDate <= toDate;
 
       return (
         matchesSearch &&
@@ -283,21 +328,37 @@ export default function Expense() {
         matchesTo
       );
     });
-  }, [expenses, search, categoryFilter, currencyFilter, fromDate, toDate, language]);
+  }, [
+    expenses,
+    search,
+    categoryFilter,
+    currencyFilter,
+    fromDate,
+    toDate,
+    language,
+  ]);
 
   const currentMonth = new Date().toISOString().slice(0, 7);
 
   const totalAFN = expenses.reduce(
-    (sum, item) => sum + item.amount * item.exchange_rate,
+    (sum, item) =>
+      sum + Number(item.amount) * Number(item.exchange_rate),
     0
   );
 
   const monthlyTotal = expenses
-    .filter((item) => item.expense_date.startsWith(currentMonth))
-    .reduce((sum, item) => sum + item.amount * item.exchange_rate, 0);
+    .filter((item) =>
+      String(item.expense_date).startsWith(currentMonth)
+    )
+    .reduce(
+      (sum, item) =>
+        sum + Number(item.amount) * Number(item.exchange_rate),
+      0
+    );
 
   const filteredTotal = filteredExpenses.reduce(
-    (sum, item) => sum + item.amount * item.exchange_rate,
+    (sum, item) =>
+      sum + Number(item.amount) * Number(item.exchange_rate),
     0
   );
 
@@ -329,12 +390,13 @@ export default function Expense() {
   const openEditModal = (expense) => {
     setForm({
       category_id: String(expense.category_id),
-      expense_date: expense.expense_date,
+      expense_date: String(expense.expense_date).slice(0, 10),
       amount: String(expense.amount),
       currency_id: String(expense.currency_id),
       exchange_rate: String(expense.exchange_rate),
       description: expense.description || "",
     });
+
     setEditingId(expense.id);
     setError("");
     setShowModal(true);
@@ -360,7 +422,8 @@ export default function Expense() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  // Save expense through Backend
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (
@@ -396,34 +459,41 @@ export default function Expense() {
       created_by: 1,
     };
 
-    if (editingId !== null) {
-      setExpenses((prev) =>
-        prev.map((item) =>
-          item.id === editingId ? { ...item, ...expenseData } : item
-        )
-      );
-      showMessage(t.expenseUpdated);
-    } else {
-      setExpenses((prev) => [
-        {
-          id: Date.now(),
-          ...expenseData,
-          created_at: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
-      showMessage(t.expenseSaved);
-    }
+    try {
+      setSaving(true);
+      setError("");
 
-    setPage(1);
-    closeModal();
+      if (editingId !== null) {
+        await updateExpense(editingId, expenseData);
+        showMessage(t.expenseUpdated);
+      } else {
+        await createExpense(expenseData);
+        showMessage(t.expenseSaved);
+      }
+
+      await loadExpenses();
+      setPage(1);
+      closeModal();
+    } catch (error) {
+      console.error("Expense save error:", error);
+      setError(error.response?.data?.message || t.saveError);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = (id) => {
+  // Delete expense through Backend
+  const handleDelete = async (id) => {
     if (!window.confirm(t.confirmDelete)) return;
 
-    setExpenses((prev) => prev.filter((item) => item.id !== id));
-    showMessage(t.expenseDeleted);
+    try {
+      await deleteExpense(id);
+      await loadExpenses();
+      showMessage(t.expenseDeleted);
+    } catch (error) {
+      console.error("Expense delete error:", error);
+      setError(error.response?.data?.message || t.deleteError);
+    }
   };
 
   const clearFilters = () => {
@@ -503,6 +573,7 @@ export default function Expense() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
+
           return (
             <div
               key={index}
@@ -517,6 +588,7 @@ export default function Expense() {
                     {stat.value}
                   </h2>
                 </div>
+
                 <div className={`rounded-xl p-3 ${stat.color}`}>
                   <Icon size={22} />
                 </div>
@@ -539,6 +611,7 @@ export default function Expense() {
               size={17}
               className={`absolute top-3.5 text-gray-400 ${isRTL ? "right-3" : "left-3"}`}
             />
+
             <input
               value={search}
               onChange={(e) => {
@@ -559,6 +632,7 @@ export default function Expense() {
             className={inputClass}
           >
             <option value="">{t.allCategories}</option>
+
             {categories.map((cat) => (
               <option key={cat.id} value={cat.id}>
                 {getCategoryName(cat.id)}
@@ -575,6 +649,7 @@ export default function Expense() {
             className={inputClass}
           >
             <option value="">{t.allCurrencies}</option>
+
             {currencies.map((currency) => (
               <option key={currency.id} value={currency.id}>
                 {currency.code}
@@ -604,6 +679,7 @@ export default function Expense() {
               className={inputClass}
             />
           </div>
+
           <div>
             <label className={labelClass}>{t.to}</label>
             <input
@@ -624,196 +700,261 @@ export default function Expense() {
         <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
           {t.totalFiltered}
         </span>
+
         <span className="text-lg font-bold text-blue-700 dark:text-blue-300">
           {formatMoney(filteredTotal)}
         </span>
       </div>
 
-      {/* Desktop Table */}
-      <div className="hidden overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900 md:block">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-sm">
-            <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-              <tr>
-                {[t.date, t.category, t.amount, t.currency, t.rate, t.baseAmount, t.description, t.actions].map((heading) => (
-                  <th key={heading} className="whitespace-nowrap px-4 py-4 text-start font-semibold">
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {paginatedExpenses.map((expense) => {
-                const currency = currencies.find(
-                  (item) => item.id === expense.currency_id
-                );
-                return (
-                  <tr key={expense.id} className="transition hover:bg-gray-50/80 dark:hover:bg-gray-800/50">
-                    <td className="whitespace-nowrap px-4 py-4">
-                      {expense.expense_date}
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-medium dark:bg-gray-800">
-                        {getCategoryName(expense.category_id)}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 font-semibold">
-                      {formatMoney(expense.amount, currency?.code)}
-                    </td>
-                    <td className="px-4 py-4">{currency?.code}</td>
-                    <td className="px-4 py-4">{expense.exchange_rate}</td>
-                    <td className="whitespace-nowrap px-4 py-4 font-semibold text-blue-600 dark:text-blue-400">
-                      {formatMoney(expense.amount * expense.exchange_rate)}
-                    </td>
-                    <td className="max-w-[180px] truncate px-4 py-4 text-gray-500">
-                      {expense.description || t.noDescription}
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => openEditModal(expense)}
-                          title={t.edit}
-                          className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-500/10"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(expense.id)}
-                          title={t.delete}
-                          className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-500/10"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* Loading and Error */}
+      {loading && (
+        <div className="rounded-xl border border-gray-100 bg-white p-8 text-center dark:border-gray-800 dark:bg-gray-900">
+          <RefreshCw size={25} className="mx-auto mb-3 animate-spin text-blue-600" />
+          <p className="text-sm text-gray-500">{t.loading}</p>
         </div>
+      )}
 
-        {filteredExpenses.length === 0 && (
-          <div className="px-4 py-14 text-center">
-            <Receipt size={35} className="mx-auto mb-3 text-gray-300" />
-            <h3 className="font-semibold">{t.noExpenses}</h3>
-            <p className="mt-1 text-sm text-gray-500">{t.noExpensesDesc}</p>
+      {!loading && error && !showModal && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-500/10 dark:text-red-400">
+          <span>{error}</span>
+          <button
+            onClick={loadExpenses}
+            className="font-semibold underline"
+          >
+            {t.clear}
+          </button>
+        </div>
+      )}
+
+      {/* Desktop Table */}
+      {!loading && (
+        <div className="hidden overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900 md:block">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[850px] text-sm">
+              <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                <tr>
+                  {[t.date, t.category, t.amount, t.currency, t.rate, t.baseAmount, t.description, t.actions].map((heading) => (
+                    <th key={heading} className="whitespace-nowrap px-4 py-4 text-start font-semibold">
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {paginatedExpenses.map((expense) => {
+                  const currency = currencies.find(
+                    (item) => item.id === Number(expense.currency_id)
+                  );
+
+                  return (
+                    <tr
+                      key={expense.id}
+                      className="transition hover:bg-gray-50/80 dark:hover:bg-gray-800/50"
+                    >
+                      <td className="whitespace-nowrap px-4 py-4">
+                        {String(expense.expense_date).slice(0, 10)}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <span className="rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-medium dark:bg-gray-800">
+                          {getCategoryName(expense.category_id)}
+                        </span>
+                      </td>
+
+                      <td className="whitespace-nowrap px-4 py-4 font-semibold">
+                        {formatMoney(expense.amount, currency?.code)}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        {currency?.code || "-"}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        {expense.exchange_rate}
+                      </td>
+
+                      <td className="whitespace-nowrap px-4 py-4 font-semibold text-blue-600 dark:text-blue-400">
+                        {formatMoney(Number(expense.amount) * Number(expense.exchange_rate))}
+                      </td>
+
+                      <td className="max-w-[180px] truncate px-4 py-4 text-gray-500">
+                        {expense.description || t.noDescription}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openEditModal(expense)}
+                            title={t.edit}
+                            className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                          >
+                            <Pencil size={16} />
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(expense.id)}
+                            title={t.delete}
+                            className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-500/10"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
 
-        {filteredExpenses.length > 0 && (
-          <div className="flex flex-col items-center justify-between gap-3 border-t border-gray-100 px-4 py-4 dark:border-gray-800 sm:flex-row">
-            <p className="text-sm text-gray-500">
-              {t.showing} {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, filteredExpenses.length)} {t.of} {filteredExpenses.length}
-            </p>
-            <div className="flex items-center gap-2">
+          {filteredExpenses.length === 0 && (
+            <div className="px-4 py-14 text-center">
+              <Receipt size={35} className="mx-auto mb-3 text-gray-300" />
+              <h3 className="font-semibold">{t.noExpenses}</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                {t.noExpensesDesc}
+              </p>
+            </div>
+          )}
+
+          {filteredExpenses.length > 0 && (
+            <div className="flex flex-col items-center justify-between gap-3 border-t border-gray-100 px-4 py-4 dark:border-gray-800 sm:flex-row">
+              <p className="text-sm text-gray-500">
+                {t.showing} {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, filteredExpenses.length)} {t.of} {filteredExpenses.length}
+              </p>
+
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={page === 1}
+                  onClick={() => changePage(page - 1)}
+                  className="rounded-lg border border-gray-200 p-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700"
+                >
+                  {isRTL ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
+                </button>
+
+                <span className="text-sm font-medium">
+                  {page} / {totalPages}
+                </span>
+
+                <button
+                  disabled={page === totalPages}
+                  onClick={() => changePage(page + 1)}
+                  className="rounded-lg border border-gray-200 p-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700"
+                >
+                  {isRTL ? <ChevronLeft size={17} /> : <ChevronRight size={17} />}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mobile Cards */}
+      {!loading && (
+        <div className="space-y-3 md:hidden">
+          {paginatedExpenses.map((expense) => {
+            const currency = currencies.find(
+              (item) => item.id === Number(expense.currency_id)
+            );
+
+            return (
+              <div
+                key={expense.id}
+                className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                      {getCategoryName(expense.category_id)}
+                    </span>
+
+                    <p className="mt-3 text-xs text-gray-500">
+                      {String(expense.expense_date).slice(0, 10)}
+                    </p>
+
+                    <h3 className="mt-1 text-lg font-bold">
+                      {formatMoney(expense.amount, currency?.code)}
+                    </h3>
+                  </div>
+
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => openEditModal(expense)}
+                      className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                    >
+                      <Pencil size={17} />
+                    </button>
+
+                    <button
+                      onClick={() => handleDelete(expense.id)}
+                      className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-3 text-sm dark:border-gray-800">
+                  <div>
+                    <p className="text-xs text-gray-500">{t.rate}</p>
+                    <p className="mt-1 font-medium">
+                      {expense.exchange_rate}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-500">{t.baseAmount}</p>
+                    <p className="mt-1 font-semibold text-blue-600 dark:text-blue-400">
+                      {formatMoney(Number(expense.amount) * Number(expense.exchange_rate))}
+                    </p>
+                  </div>
+                </div>
+
+                {expense.description && (
+                  <p className="mt-3 border-t border-gray-100 pt-3 text-sm text-gray-500 dark:border-gray-800">
+                    {expense.description}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+
+          {filteredExpenses.length === 0 && (
+            <div className="rounded-2xl border border-gray-100 bg-white px-4 py-12 text-center dark:border-gray-800 dark:bg-gray-900">
+              <Receipt size={35} className="mx-auto mb-3 text-gray-300" />
+              <h3 className="font-semibold">{t.noExpenses}</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                {t.noExpensesDesc}
+              </p>
+            </div>
+          )}
+
+          {filteredExpenses.length > 0 && (
+            <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
               <button
                 disabled={page === 1}
                 onClick={() => changePage(page - 1)}
-                className="rounded-lg border border-gray-200 p-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700"
+                className="rounded-lg border border-gray-200 p-2 disabled:opacity-40 dark:border-gray-700"
               >
                 {isRTL ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
               </button>
-              <span className="text-sm font-medium">{page} / {totalPages}</span>
+
+              <span className="text-sm font-medium">
+                {page} / {totalPages}
+              </span>
+
               <button
                 disabled={page === totalPages}
                 onClick={() => changePage(page + 1)}
-                className="rounded-lg border border-gray-200 p-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700"
+                className="rounded-lg border border-gray-200 p-2 disabled:opacity-40 dark:border-gray-700"
               >
                 {isRTL ? <ChevronLeft size={17} /> : <ChevronRight size={17} />}
               </button>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Mobile Cards */}
-      <div className="space-y-3 md:hidden">
-        {paginatedExpenses.map((expense) => {
-          const currency = currencies.find(
-            (item) => item.id === expense.currency_id
-          );
-          return (
-            <div
-              key={expense.id}
-              className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <span className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
-                    {getCategoryName(expense.category_id)}
-                  </span>
-                  <p className="mt-3 text-xs text-gray-500">{expense.expense_date}</p>
-                  <h3 className="mt-1 text-lg font-bold">
-                    {formatMoney(expense.amount, currency?.code)}
-                  </h3>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => openEditModal(expense)}
-                    className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10"
-                  >
-                    <Pencil size={17} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(expense.id)}
-                    className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
-                  >
-                    <Trash2 size={17} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-3 text-sm dark:border-gray-800">
-                <div>
-                  <p className="text-xs text-gray-500">{t.rate}</p>
-                  <p className="mt-1 font-medium">{expense.exchange_rate}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">{t.baseAmount}</p>
-                  <p className="mt-1 font-semibold text-blue-600 dark:text-blue-400">
-                    {formatMoney(expense.amount * expense.exchange_rate)}
-                  </p>
-                </div>
-              </div>
-
-              {expense.description && (
-                <p className="mt-3 border-t border-gray-100 pt-3 text-sm text-gray-500 dark:border-gray-800">
-                  {expense.description}
-                </p>
-              )}
-            </div>
-          );
-        })}
-
-        {filteredExpenses.length === 0 && (
-          <div className="rounded-2xl border border-gray-100 bg-white px-4 py-12 text-center dark:border-gray-800 dark:bg-gray-900">
-            <Receipt size={35} className="mx-auto mb-3 text-gray-300" />
-            <h3 className="font-semibold">{t.noExpenses}</h3>
-            <p className="mt-1 text-sm text-gray-500">{t.noExpensesDesc}</p>
-          </div>
-        )}
-
-        {filteredExpenses.length > 0 && (
-          <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-            <button
-              disabled={page === 1}
-              onClick={() => changePage(page - 1)}
-              className="rounded-lg border border-gray-200 p-2 disabled:opacity-40 dark:border-gray-700"
-            >
-              {isRTL ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
-            </button>
-            <span className="text-sm font-medium">{page} / {totalPages}</span>
-            <button
-              disabled={page === totalPages}
-              onClick={() => changePage(page + 1)}
-              className="rounded-lg border border-gray-200 p-2 disabled:opacity-40 dark:border-gray-700"
-            >
-              {isRTL ? <ChevronLeft size={17} /> : <ChevronRight size={17} />}
-            </button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Add / Edit Modal */}
       {showModal && (
@@ -828,6 +969,7 @@ export default function Expense() {
               <h2 className="text-lg font-bold">
                 {editingId ? t.editTitle : t.addTitle}
               </h2>
+
               <button
                 onClick={closeModal}
                 className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -840,13 +982,17 @@ export default function Expense() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className={labelClass}>{t.category} *</label>
+
                   <select
                     required
                     value={form.category_id}
-                    onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, category_id: e.target.value })
+                    }
                     className={inputClass}
                   >
                     <option value="">{t.selectCategory}</option>
+
                     {categories.map((cat) => (
                       <option key={cat.id} value={cat.id}>
                         {getCategoryName(cat.id)}
@@ -857,24 +1003,30 @@ export default function Expense() {
 
                 <div>
                   <label className={labelClass}>{t.date} *</label>
+
                   <input
                     required
                     type="date"
                     value={form.expense_date}
-                    onChange={(e) => setForm({ ...form, expense_date: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, expense_date: e.target.value })
+                    }
                     className={inputClass}
                   />
                 </div>
 
                 <div>
                   <label className={labelClass}>{t.amount} *</label>
+
                   <input
                     required
                     min="0.01"
                     step="0.01"
                     type="number"
                     value={form.amount}
-                    onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, amount: e.target.value })
+                    }
                     placeholder={t.enterAmount}
                     className={inputClass}
                   />
@@ -882,13 +1034,17 @@ export default function Expense() {
 
                 <div>
                   <label className={labelClass}>{t.currency} *</label>
+
                   <select
                     required
                     value={form.currency_id}
-                    onChange={(e) => handleCurrencyChange(e.target.value)}
+                    onChange={(e) =>
+                      handleCurrencyChange(e.target.value)
+                    }
                     className={inputClass}
                   >
                     <option value="">{t.selectCurrency}</option>
+
                     {currencies.map((currency) => (
                       <option key={currency.id} value={currency.id}>
                         {currency.code}
@@ -899,6 +1055,7 @@ export default function Expense() {
 
                 <div>
                   <label className={labelClass}>{t.rate} *</label>
+
                   <input
                     required
                     min="0.000001"
@@ -906,7 +1063,9 @@ export default function Expense() {
                     type="number"
                     value={form.exchange_rate}
                     disabled={form.currency_id === "1"}
-                    onChange={(e) => setForm({ ...form, exchange_rate: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, exchange_rate: e.target.value })
+                    }
                     placeholder={t.enterRate}
                     className={`${inputClass} disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800`}
                   />
@@ -914,10 +1073,12 @@ export default function Expense() {
 
                 <div>
                   <label className={labelClass}>{t.baseAmount}</label>
+
                   <div className={`${inputClass} flex items-center justify-between bg-gray-50 dark:bg-gray-800`}>
                     <span className="font-semibold text-blue-600 dark:text-blue-400">
                       {formatMoney(convertedAmount)}
                     </span>
+
                     <ArrowDownUp size={16} className="text-gray-400" />
                   </div>
                 </div>
@@ -925,10 +1086,13 @@ export default function Expense() {
 
               <div>
                 <label className={labelClass}>{t.description}</label>
+
                 <textarea
                   rows={3}
                   value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, description: e.target.value })
+                  }
                   placeholder={t.enterDescription}
                   className={`${inputClass} resize-none`}
                 />
@@ -944,15 +1108,18 @@ export default function Expense() {
                 <button
                   type="button"
                   onClick={closeModal}
+                  disabled={saving}
                   className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   {t.cancel}
                 </button>
+
                 <button
                   type="submit"
-                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                  disabled={saving}
+                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {editingId ? t.update : t.save}
+                  {saving ? t.loading : editingId ? t.update : t.save}
                 </button>
               </div>
             </form>
