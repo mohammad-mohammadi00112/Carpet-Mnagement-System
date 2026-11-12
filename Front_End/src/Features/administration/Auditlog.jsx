@@ -1,6 +1,5 @@
 
-
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search,
   Eye,
@@ -16,101 +15,7 @@ import {
   ChevronRight,
   FileJson,
 } from "lucide-react";
-
-const initialLogs = [
-  {
-    id: 1,
-    user_id: 1,
-    action: "INSERT",
-    table_name: "carpets",
-    record_id: 12,
-    old_data: null,
-    new_data: {
-      code: "CRP-0012",
-      name: "Persian Carpet",
-      price: 25000,
-      status: "active",
-    },
-    ip_address: "192.168.1.10",
-    created_at: "2026-11-12T08:30:00",
-  },
-  {
-    id: 2,
-    user_id: 2,
-    action: "UPDATE",
-    table_name: "customers",
-    record_id: 5,
-    old_data: {
-      phone: "0700000001",
-      address: "Herat",
-    },
-    new_data: {
-      phone: "0700000002",
-      address: "Kabul",
-    },
-    ip_address: "192.168.1.12",
-    created_at: "2026-11-12T09:15:00",
-  },
-  {
-    id: 3,
-    user_id: 1,
-    action: "DELETE",
-    table_name: "employees",
-    record_id: 8,
-    old_data: {
-      first_name: "Ahmad",
-      last_name: "Mohammadi",
-      phone: "0700000003",
-    },
-    new_data: null,
-    ip_address: "192.168.1.10",
-    created_at: "2026-11-11T14:20:00",
-  },
-  {
-    id: 4,
-    user_id: 3,
-    action: "INSERT",
-    table_name: "sales",
-    record_id: 24,
-    old_data: null,
-    new_data: {
-      customer_id: 5,
-      total_amount: 45000,
-      payment_status: "paid",
-    },
-    ip_address: "192.168.1.15",
-    created_at: "2026-11-11T11:45:00",
-  },
-  {
-    id: 5,
-    user_id: 2,
-    action: "UPDATE",
-    table_name: "inventory",
-    record_id: 3,
-    old_data: {
-      quantity: 10,
-    },
-    new_data: {
-      quantity: 15,
-    },
-    ip_address: "192.168.1.12",
-    created_at: "2026-11-10T10:00:00",
-  },
-  {
-    id: 6,
-    user_id: 1,
-    action: "DELETE",
-    table_name: "expenses",
-    record_id: 9,
-    old_data: {
-      amount: 5000,
-      description: "Transportation",
-    },
-    new_data: null,
-    ip_address: "192.168.1.10",
-    created_at: "2026-11-09T16:30:00",
-  },
-];
+import { getAuditLogs } from "../services/administration/auditLogService";
 
 const translations = {
   en: {
@@ -148,6 +53,9 @@ const translations = {
     deleted: "Deleted",
     clear: "Clear Filters",
     unknown: "Unknown",
+    loading: "Loading audit logs...",
+    error: "Failed to load audit logs.",
+    retry: "Try Again",
   },
   fa: {
     title: "گزارش فعالیت‌ها",
@@ -184,6 +92,9 @@ const translations = {
     deleted: "حذف",
     clear: "پاک‌کردن فیلترها",
     unknown: "نامشخص",
+    loading: "در حال بارگذاری گزارش فعالیت‌ها...",
+    error: "بارگذاری گزارش فعالیت‌ها ناموفق بود.",
+    retry: "تلاش دوباره",
   },
   ps: {
     title: "د فعالیتونو راپور",
@@ -220,21 +131,53 @@ const translations = {
     deleted: "حذف",
     clear: "فلټرونه پاکول",
     unknown: "نامعلوم",
+    loading: "د فعالیتونو راپور پورته کېږي...",
+    error: "د فعالیتونو راپور پورته نه شو.",
+    retry: "بیا هڅه وکړئ",
   },
 };
 
 const actionStyles = {
-  INSERT: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
-  UPDATE: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
-  DELETE: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+  INSERT:
+    "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+  UPDATE:
+    "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
+  DELETE:
+    "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+};
+
+const getErrorMessage = (error) =>
+  error.response?.data?.message ||
+  error.response?.data?.error ||
+  error.message ||
+  "Something went wrong.";
+
+const parseJsonData = (data) => {
+  if (!data) return null;
+
+  if (typeof data === "string") {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return data;
+    }
+  }
+
+  return data;
 };
 
 export default function AuditLog() {
-  const lang = document.documentElement.lang || "en";
+  const lang =
+    localStorage.getItem("language") ||
+    document.documentElement.lang ||
+    "en";
+
   const t = translations[lang] || translations.en;
   const isRtl = lang === "fa" || lang === "ps";
 
-  const [logs] = useState(initialLogs);
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
   const [tableFilter, setTableFilter] = useState("all");
@@ -243,8 +186,36 @@ export default function AuditLog() {
 
   const pageSize = 6;
 
+  // Fetch audit logs from backend
+  const fetchLogs = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const data = await getAuditLogs();
+
+      if (!Array.isArray(data)) {
+        throw new Error(data?.message || data?.error || "Invalid response from server.");
+      }
+
+      setLogs(data);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLogs();
+  }, []);
+
   const tables = useMemo(
-    () => [...new Set(logs.map((log) => log.table_name))],
+    () => [
+      ...new Set(
+        logs.map((log) => log.table_name).filter(Boolean)
+      ),
+    ],
     [logs]
   );
 
@@ -253,11 +224,11 @@ export default function AuditLog() {
       const query = search.toLowerCase();
 
       const matchesSearch =
-        String(log.user_id).includes(query) ||
-        log.table_name.toLowerCase().includes(query) ||
-        String(log.record_id).includes(query) ||
+        String(log.user_id ?? t.system).toLowerCase().includes(query) ||
+        String(log.table_name || "").toLowerCase().includes(query) ||
+        String(log.record_id ?? "").toLowerCase().includes(query) ||
         String(log.ip_address || "").toLowerCase().includes(query) ||
-        log.action.toLowerCase().includes(query);
+        String(log.action || "").toLowerCase().includes(query);
 
       const matchesAction =
         actionFilter === "all" || log.action === actionFilter;
@@ -267,14 +238,24 @@ export default function AuditLog() {
 
       return matchesSearch && matchesAction && matchesTable;
     });
-  }, [logs, search, actionFilter, tableFilter]);
+  }, [logs, search, actionFilter, tableFilter, t.system]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredLogs.length / pageSize)
+  );
 
   const currentLogs = filteredLogs.slice(
     (page - 1) * pageSize,
     page * pageSize
   );
+
+  // Keep current page valid after filtering or refreshing
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   const stats = [
     {
@@ -322,7 +303,7 @@ export default function AuditLog() {
     if (action === "INSERT") return t.created;
     if (action === "UPDATE") return t.updated;
     if (action === "DELETE") return t.deleted;
-    return action;
+    return action || t.unknown;
   };
 
   const clearFilters = () => {
@@ -333,7 +314,9 @@ export default function AuditLog() {
   };
 
   const hasFilters =
-    search !== "" || actionFilter !== "all" || tableFilter !== "all";
+    search !== "" ||
+    actionFilter !== "all" ||
+    tableFilter !== "all";
 
   return (
     <div
@@ -348,6 +331,7 @@ export default function AuditLog() {
             {t.subtitle}
           </p>
         </div>
+
         <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm dark:border-slate-800 dark:bg-slate-900">
           <ClipboardList size={18} className="text-blue-600" />
           <span>{t.total}:</span>
@@ -370,8 +354,11 @@ export default function AuditLog() {
                   <p className="text-sm text-slate-500 dark:text-slate-400">
                     {stat.label}
                   </p>
-                  <h2 className="mt-2 text-2xl font-bold">{stat.value}</h2>
+                  <h2 className="mt-2 text-2xl font-bold">
+                    {stat.value}
+                  </h2>
                 </div>
+
                 <div className={`rounded-xl p-3 ${stat.color}`}>
                   <Icon size={22} />
                 </div>
@@ -381,186 +368,238 @@ export default function AuditLog() {
         })}
       </div>
 
-      {/* Filters */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[1fr_200px_200px_auto]">
-          <div className="relative">
-            <Search
-              size={18}
-              className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${
-                isRtl ? "right-3" : "left-3"
-              }`}
-            />
-            <input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              placeholder={t.search}
-              className={`w-full rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 ${
-                isRtl ? "pr-10 pl-3" : "pl-10 pr-3"
-              }`}
-            />
-          </div>
-
-          <select
-            value={actionFilter}
-            onChange={(e) => {
-              setActionFilter(e.target.value);
-              setPage(1);
-            }}
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-800"
-          >
-            <option value="all">{t.allActions}</option>
-            <option value="INSERT">{t.created}</option>
-            <option value="UPDATE">{t.updated}</option>
-            <option value="DELETE">{t.deleted}</option>
-          </select>
-
-          <select
-            value={tableFilter}
-            onChange={(e) => {
-              setTableFilter(e.target.value);
-              setPage(1);
-            }}
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-800"
-          >
-            <option value="all">{t.allTables}</option>
-            {tables.map((table) => (
-              <option key={table} value={table}>
-                {table}
-              </option>
-            ))}
-          </select>
-
-          {hasFilters && (
-            <button
-              onClick={clearFilters}
-              className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              {t.clear}
-            </button>
-          )}
+      {/* Loading */}
+      {loading && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+          <RefreshCw size={28} className="mx-auto mb-3 animate-spin" />
+          {t.loading}
         </div>
-      </div>
+      )}
 
-      {/* Audit Table */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-sm">
-            <thead className="bg-slate-50 text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
-              <tr>
-                <th className="px-5 py-4 text-start font-semibold">ID</th>
-                <th className="px-5 py-4 text-start font-semibold">{t.activity}</th>
-                <th className="px-5 py-4 text-start font-semibold">{t.user}</th>
-                <th className="px-5 py-4 text-start font-semibold">{t.table}</th>
-                <th className="px-5 py-4 text-start font-semibold">{t.record}</th>
-                <th className="px-5 py-4 text-start font-semibold">{t.ip}</th>
-                <th className="px-5 py-4 text-start font-semibold">{t.date}</th>
-                <th className="px-5 py-4 text-end font-semibold">{t.details}</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {currentLogs.map((log) => (
-                <tr
-                  key={log.id}
-                  className="transition hover:bg-slate-50 dark:hover:bg-slate-800/40"
-                >
-                  <td className="px-5 py-4 font-medium">#{log.id}</td>
-
-                  <td className="px-5 py-4">
-                    <span
-                      className={`inline-flex rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                        actionStyles[log.action] ||
-                        "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                      }`}
-                    >
-                      {getActionLabel(log.action)}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <User size={16} className="text-slate-400" />
-                      {log.user_id ?? t.system}
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-4 font-medium">{log.table_name}</td>
-                  <td className="px-5 py-4">#{log.record_id}</td>
-
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                      <Globe size={15} />
-                      {log.ip_address || "-"}
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-4 text-slate-500 dark:text-slate-400">
-                    {formatDate(log.created_at)}
-                  </td>
-
-                  <td className="px-5 py-4 text-end">
-                    <button
-                      onClick={() => setSelectedLog(log)}
-                      title={t.viewDetails}
-                      className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-500/10"
-                    >
-                      <Eye size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-
-              {currentLogs.length === 0 && (
-                <tr>
-                  <td
-                    colSpan="8"
-                    className="px-5 py-12 text-center text-slate-500"
-                  >
-                    <ClipboardList size={32} className="mx-auto mb-3 opacity-40" />
-                    {t.noLogs}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="flex flex-col justify-between gap-3 border-t border-slate-100 px-5 py-4 dark:border-slate-800 sm:flex-row sm:items-center">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {t.showing} {filteredLogs.length === 0 ? 0 : (page - 1) * pageSize + 1}
-            {" - "}
-            {Math.min(page * pageSize, filteredLogs.length)} {t.of}{" "}
-            {filteredLogs.length}
+      {/* Error */}
+      {!loading && error && (
+        <div className="rounded-2xl border border-red-200 bg-white p-8 text-center dark:border-red-900 dark:bg-slate-900">
+          <p className="mb-4 text-sm text-red-600 dark:text-red-400">
+            {t.error} {error}
           </p>
 
-          <div className="flex items-center gap-2">
-            <button
-              disabled={page === 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="rounded-lg border border-slate-200 p-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700"
-            >
-              {isRtl ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-            </button>
-
-            <span className="px-2 text-sm">
-              {page} / {totalPages}
-            </span>
-
-            <button
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="rounded-lg border border-slate-200 p-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700"
-            >
-              {isRtl ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-            </button>
-          </div>
+          <button
+            onClick={fetchLogs}
+            className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            {t.retry}
+          </button>
         </div>
-      </div>
+      )}
+
+      {!loading && !error && (
+        <>
+          {/* Filters */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[1fr_200px_200px_auto]">
+              <div className="relative">
+                <Search
+                  size={18}
+                  className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${
+                    isRtl ? "right-3" : "left-3"
+                  }`}
+                />
+
+                <input
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder={t.search}
+                  className={`w-full rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 ${
+                    isRtl ? "pr-10 pl-3" : "pl-10 pr-3"
+                  }`}
+                />
+              </div>
+
+              <select
+                value={actionFilter}
+                onChange={(e) => {
+                  setActionFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-800"
+              >
+                <option value="all">{t.allActions}</option>
+                <option value="INSERT">{t.created}</option>
+                <option value="UPDATE">{t.updated}</option>
+                <option value="DELETE">{t.deleted}</option>
+              </select>
+
+              <select
+                value={tableFilter}
+                onChange={(e) => {
+                  setTableFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-800"
+              >
+                <option value="all">{t.allTables}</option>
+                {tables.map((table) => (
+                  <option key={table} value={table}>
+                    {table}
+                  </option>
+                ))}
+              </select>
+
+              {hasFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  {t.clear}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Audit Table */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[850px] text-sm">
+                <thead className="bg-slate-50 text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
+                  <tr>
+                    <th className="px-5 py-4 text-start font-semibold">ID</th>
+                    <th className="px-5 py-4 text-start font-semibold">{t.activity}</th>
+                    <th className="px-5 py-4 text-start font-semibold">{t.user}</th>
+                    <th className="px-5 py-4 text-start font-semibold">{t.table}</th>
+                    <th className="px-5 py-4 text-start font-semibold">{t.record}</th>
+                    <th className="px-5 py-4 text-start font-semibold">{t.ip}</th>
+                    <th className="px-5 py-4 text-start font-semibold">{t.date}</th>
+                    <th className="px-5 py-4 text-end font-semibold">{t.details}</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {currentLogs.map((log) => (
+                    <tr
+                      key={log.id}
+                      className="transition hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                    >
+                      <td className="px-5 py-4 font-medium">
+                        #{log.id}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                            actionStyles[log.action] ||
+                            "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                          }`}
+                        >
+                          {getActionLabel(log.action)}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <User size={16} className="text-slate-400" />
+                          {log.user_id ?? t.system}
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4 font-medium">
+                        {log.table_name || "-"}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        {log.record_id != null ? `#${log.record_id}` : "-"}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                          <Globe size={15} />
+                          {log.ip_address || "-"}
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4 text-slate-500 dark:text-slate-400">
+                        {formatDate(log.created_at)}
+                      </td>
+
+                      <td className="px-5 py-4 text-end">
+                        <button
+                          onClick={() => setSelectedLog(log)}
+                          title={t.viewDetails}
+                          className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                        >
+                          <Eye size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {currentLogs.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan="8"
+                        className="px-5 py-12 text-center text-slate-500"
+                      >
+                        <ClipboardList
+                          size={32}
+                          className="mx-auto mb-3 opacity-40"
+                        />
+                        {t.noLogs}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex flex-col justify-between gap-3 border-t border-slate-100 px-5 py-4 dark:border-slate-800 sm:flex-row sm:items-center">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {t.showing}{" "}
+                {filteredLogs.length === 0
+                  ? 0
+                  : (page - 1) * pageSize + 1}
+                {" - "}
+                {Math.min(page * pageSize, filteredLogs.length)} {t.of}{" "}
+                {filteredLogs.length}
+              </p>
+
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="rounded-lg border border-slate-200 p-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700"
+                >
+                  {isRtl ? (
+                    <ChevronRight size={18} />
+                  ) : (
+                    <ChevronLeft size={18} />
+                  )}
+                </button>
+
+                <span className="px-2 text-sm">
+                  {page} / {totalPages}
+                </span>
+
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() =>
+                    setPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  className="rounded-lg border border-slate-200 p-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700"
+                >
+                  {isRtl ? (
+                    <ChevronLeft size={18} />
+                  ) : (
+                    <ChevronRight size={18} />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Details Modal */}
       {selectedLog && (
@@ -574,7 +613,9 @@ export default function AuditLog() {
           >
             <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
               <div>
-                <h2 className="text-lg font-bold">{t.activityDetails}</h2>
+                <h2 className="text-lg font-bold">
+                  {t.activityDetails}
+                </h2>
                 <p className="mt-1 text-sm text-slate-500">
                   #{selectedLog.id} · {selectedLog.table_name}
                 </p>
@@ -591,7 +632,9 @@ export default function AuditLog() {
             <div className="space-y-5 p-5">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
-                  <p className="mb-2 text-xs text-slate-500">{t.action}</p>
+                  <p className="mb-2 text-xs text-slate-500">
+                    {t.action}
+                  </p>
                   <span
                     className={`inline-flex rounded-lg px-3 py-1.5 text-sm font-semibold ${
                       actionStyles[selectedLog.action] || ""
@@ -610,12 +653,18 @@ export default function AuditLog() {
 
                 <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
                   <p className="mb-2 text-xs text-slate-500">{t.table}</p>
-                  <p className="font-semibold">{selectedLog.table_name}</p>
+                  <p className="font-semibold">
+                    {selectedLog.table_name || "-"}
+                  </p>
                 </div>
 
                 <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
                   <p className="mb-2 text-xs text-slate-500">{t.record}</p>
-                  <p className="font-semibold">#{selectedLog.record_id}</p>
+                  <p className="font-semibold">
+                    {selectedLog.record_id != null
+                      ? `#${selectedLog.record_id}`
+                      : "-"}
+                  </p>
                 </div>
 
                 <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
@@ -641,10 +690,16 @@ export default function AuditLog() {
                     <h3 className="font-semibold">{t.oldData}</h3>
                   </div>
 
-                  <pre className="max-h-72 overflow-auto p-4 text-xs leading-6 text-slate-600 dark:text-slate-300">
-                    {selectedLog.old_data
-                      ? JSON.stringify(selectedLog.old_data, null, 2)
-                      : t.noData}
+                  <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words p-4 text-xs leading-6 text-slate-600 dark:text-slate-300">
+                    {(() => {
+                      const data = parseJsonData(selectedLog.old_data);
+
+                      return data
+                        ? typeof data === "string"
+                          ? data
+                          : JSON.stringify(data, null, 2)
+                        : t.noData;
+                    })()}
                   </pre>
                 </div>
 
@@ -654,10 +709,16 @@ export default function AuditLog() {
                     <h3 className="font-semibold">{t.newData}</h3>
                   </div>
 
-                  <pre className="max-h-72 overflow-auto p-4 text-xs leading-6 text-slate-600 dark:text-slate-300">
-                    {selectedLog.new_data
-                      ? JSON.stringify(selectedLog.new_data, null, 2)
-                      : t.noData}
+                  <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words p-4 text-xs leading-6 text-slate-600 dark:text-slate-300">
+                    {(() => {
+                      const data = parseJsonData(selectedLog.new_data);
+
+                      return data
+                        ? typeof data === "string"
+                          ? data
+                          : JSON.stringify(data, null, 2)
+                        : t.noData;
+                    })()}
                   </pre>
                 </div>
               </div>

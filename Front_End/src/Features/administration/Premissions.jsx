@@ -1,24 +1,15 @@
-
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ShieldCheck, Search, Plus, Eye, Pencil, Trash2,
   X, KeyRound, Lock, AlertTriangle
 } from "lucide-react";
 
-const initialPermissions = [
-  { id: 1, code: "admin.manage", description: "Manage system administration and settings." },
-  { id: 2, code: "carpets.read", description: "View carpet information." },
-  { id: 3, code: "carpets.manage", description: "Create, update and delete carpets." },
-  { id: 4, code: "customers.read", description: "View customer information." },
-  { id: 5, code: "customers.manage", description: "Manage customer records." },
-  { id: 6, code: "sales.read", description: "View sales and invoices." },
-  { id: 7, code: "sales.manage", description: "Create and manage sales." },
-  { id: 8, code: "purchases.read", description: "View purchase records." },
-  { id: 9, code: "purchases.manage", description: "Manage purchases." },
-  { id: 10, code: "inventory.read", description: "View inventory information." },
-  { id: 11, code: "inventory.manage", description: "Manage inventory and stock." },
-  { id: 12, code: "reports.read", description: "View system reports." },
-];
+import {
+  getPermissions,
+  createPermission,
+  updatePermission,
+  deletePermission,
+} from "../services/administration/permissionsService";
 
 const translations = {
   en: {
@@ -49,7 +40,12 @@ const translations = {
     all: "All Permissions",
     read: "Read Permissions",
     manage: "Manage Permissions",
+    loading: "Loading permissions...",
+    loadError: "Failed to load permissions.",
+    saveError: "Failed to save permission.",
+    deleteError: "Failed to delete permission.",
   },
+
   fa: {
     title: "صلاحیت‌ها",
     subtitle: "مدیریت صلاحیت‌ها و کدهای دسترسی سیستم.",
@@ -78,7 +74,12 @@ const translations = {
     all: "تمام صلاحیت‌ها",
     read: "صلاحیت‌های مشاهده",
     manage: "صلاحیت‌های مدیریت",
+    loading: "در حال دریافت صلاحیت‌ها...",
+    loadError: "دریافت صلاحیت‌ها ناموفق بود.",
+    saveError: "ذخیره صلاحیت ناموفق بود.",
+    deleteError: "حذف صلاحیت ناموفق بود.",
   },
+
   ps: {
     title: "اجازې",
     subtitle: "د سیستم اجازې او د لاسرسي کوډونه مدیریت کړئ.",
@@ -107,61 +108,129 @@ const translations = {
     all: "ټولې اجازې",
     read: "د لیدلو اجازې",
     manage: "د مدیریت اجازې",
+    loading: "د اجازو معلومات ترلاسه کېږي...",
+    loadError: "د اجازو ترلاسه کول ناکام شول.",
+    saveError: "د اجازې خوندي کول ناکام شول.",
+    deleteError: "د اجازې حذف ناکام شو.",
   },
 };
 
 export default function Permissions() {
-  const [permissions, setPermissions] = useState(initialPermissions);
+  const [permissions, setPermissions] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
-  const [form, setForm] = useState({ code: "", description: "" });
-  const [error, setError] = useState("");
 
-  // Use the project's global language setting.
+  const [form, setForm] = useState({
+    code: "",
+    description: "",
+  });
+
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Global language setting
   const language = document.documentElement.lang || "en";
   const t = translations[language] || translations.en;
+  const rtl = ["fa", "ps"].includes(language);
 
+  // API error handler
+  const getErrorMessage = (err, fallback) => {
+    const data = err.response?.data;
+
+    if (data?.message) return data.message;
+    if (data?.error) return data.error;
+    if (data?.detail) return data.detail;
+    if (data?.code && data?.severity) return data.detail || fallback;
+
+    return err.message || fallback;
+  };
+
+  // Get permissions from backend
+  const loadPermissions = async () => {
+    try {
+      setLoading(true);
+
+      const data = await getPermissions();
+
+      if (!Array.isArray(data)) {
+        throw new Error(
+          data?.detail || data?.message || t.loadError
+        );
+      }
+
+      setPermissions(data);
+    } catch (err) {
+      console.error("Loading permissions error:", err);
+      setError(getErrorMessage(err, t.loadError));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPermissions();
+  }, []);
+
+  // Search and filter
   const filteredPermissions = useMemo(() => {
     return permissions.filter((permission) => {
       const matchesSearch =
-        permission.code.toLowerCase().includes(search.toLowerCase()) ||
-        (permission.description || "").toLowerCase().includes(search.toLowerCase());
+        (permission.code || "")
+          .toLowerCase()
+          .includes(search.toLowerCase()) ||
+        (permission.description || "")
+          .toLowerCase()
+          .includes(search.toLowerCase());
 
       const matchesFilter =
         filter === "all" ||
-        (filter === "read" && permission.code.endsWith(".read")) ||
-        (filter === "manage" && permission.code.endsWith(".manage"));
+        (filter === "read" &&
+          permission.code?.endsWith(".read")) ||
+        (filter === "manage" &&
+          permission.code?.endsWith(".manage"));
 
       return matchesSearch && matchesFilter;
     });
   }, [permissions, search, filter]);
 
+  // Open add modal
   const openAdd = () => {
-    setForm({ code: "", description: "" });
+    setForm({
+      code: "",
+      description: "",
+    });
+
     setSelected(null);
     setError("");
     setModal("add");
   };
 
+  // Open edit modal
   const openEdit = (permission) => {
     setSelected(permission);
+
     setForm({
-      code: permission.code,
+      code: permission.code || "",
       description: permission.description || "",
     });
+
     setError("");
     setModal("edit");
   };
 
+  // Open view modal
   const openView = (permission) => {
     setSelected(permission);
     setModal("view");
   };
 
-  const handleSave = () => {
+  // Save permission through backend
+  const handleSave = async () => {
     const code = form.code.trim().toLowerCase();
+    const description = form.description.trim();
 
     if (!code) {
       setError(t.codeRequired);
@@ -170,7 +239,7 @@ export default function Permissions() {
 
     const exists = permissions.some(
       (permission) =>
-        permission.code.toLowerCase() === code &&
+        permission.code?.toLowerCase() === code &&
         permission.id !== selected?.id
     );
 
@@ -179,35 +248,64 @@ export default function Permissions() {
       return;
     }
 
-    if (modal === "add") {
-      setPermissions((prev) => [
-        ...prev,
-        {
-          id: Math.max(0, ...prev.map((item) => item.id)) + 1,
-          code,
-          description: form.description.trim(),
-        },
-      ]);
-    } else {
-      setPermissions((prev) =>
-        prev.map((permission) =>
-          permission.id === selected.id
-            ? { ...permission, code, description: form.description.trim() }
-            : permission
-        )
-      );
-    }
+    try {
+      setSaving(true);
+      setError("");
 
-    setModal(null);
-    setError("");
+      let response;
+
+      if (modal === "add") {
+        response = await createPermission({
+          code,
+          description,
+        });
+      } else {
+        response = await updatePermission(selected.id, {
+          code,
+          description,
+        });
+      }
+
+      // Backend may return a PostgreSQL error as JSON.
+      if (response?.severity || response?.detail) {
+        throw new Error(response.detail || response.message || t.saveError);
+      }
+
+      await loadPermissions();
+      setModal(null);
+      setSelected(null);
+    } catch (err) {
+      console.error("Saving permission error:", err);
+      setError(getErrorMessage(err, t.saveError));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = () => {
-    setPermissions((prev) =>
-      prev.filter((permission) => permission.id !== selected.id)
-    );
-    setModal(null);
-    setSelected(null);
+  // Delete permission through backend
+  const handleDelete = async () => {
+    try {
+      setSaving(true);
+      setError("");
+
+      const response = await deletePermission(selected.id);
+
+      if (response?.severity || response?.detail) {
+        throw new Error(
+          response.detail || response.message || t.deleteError
+        );
+      }
+
+      await loadPermissions();
+
+      setModal(null);
+      setSelected(null);
+    } catch (err) {
+      console.error("Deleting permission error:", err);
+      setError(getErrorMessage(err, t.deleteError));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const inputClass =
@@ -221,11 +319,19 @@ export default function Permissions() {
   const buttonClass =
     "rounded-lg p-2 text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700";
 
-  const readCount = permissions.filter((p) => p.code.endsWith(".read")).length;
-  const manageCount = permissions.filter((p) => p.code.endsWith(".manage")).length;
+  const readCount = permissions.filter(
+    (p) => p.code?.endsWith(".read")
+  ).length;
+
+  const manageCount = permissions.filter(
+    (p) => p.code?.endsWith(".manage")
+  ).length;
 
   return (
-    <div className="min-h-screen space-y-6 bg-gray-50 p-4 text-gray-800 transition-colors dark:bg-gray-900 dark:text-white sm:p-6">
+    <div
+      dir={rtl ? "rtl" : "ltr"}
+      className="min-h-screen space-y-6 bg-gray-50 p-4 text-gray-800 transition-colors dark:bg-gray-900 dark:text-white sm:p-6"
+    >
       <div className="mx-auto max-w-7xl space-y-6">
 
         {/* Header */}
@@ -234,9 +340,12 @@ export default function Permissions() {
             <div className="rounded-xl bg-blue-100 p-3 text-blue-600 dark:bg-blue-900/40">
               <ShieldCheck size={25} />
             </div>
+
             <div>
               <h1 className="text-2xl font-bold">{t.title}</h1>
-              <p className={`mt-1 text-sm ${mutedText}`}>{t.subtitle}</p>
+              <p className={`mt-1 text-sm ${mutedText}`}>
+                {t.subtitle}
+              </p>
             </div>
           </div>
 
@@ -255,8 +364,11 @@ export default function Permissions() {
             <div className="flex items-center justify-between">
               <div>
                 <p className={`text-sm ${mutedText}`}>{t.total}</p>
-                <h2 className="mt-2 text-3xl font-bold">{permissions.length}</h2>
+                <h2 className="mt-2 text-3xl font-bold">
+                  {permissions.length}
+                </h2>
               </div>
+
               <div className="rounded-xl bg-blue-100 p-3 text-blue-600 dark:bg-blue-900/40">
                 <KeyRound size={24} />
               </div>
@@ -267,8 +379,11 @@ export default function Permissions() {
             <div className="flex items-center justify-between">
               <div>
                 <p className={`text-sm ${mutedText}`}>{t.read}</p>
-                <h2 className="mt-2 text-3xl font-bold">{readCount}</h2>
+                <h2 className="mt-2 text-3xl font-bold">
+                  {readCount}
+                </h2>
               </div>
+
               <div className="rounded-xl bg-green-100 p-3 text-green-600 dark:bg-green-900/40">
                 <Eye size={24} />
               </div>
@@ -279,8 +394,11 @@ export default function Permissions() {
             <div className="flex items-center justify-between">
               <div>
                 <p className={`text-sm ${mutedText}`}>{t.manage}</p>
-                <h2 className="mt-2 text-3xl font-bold">{manageCount}</h2>
+                <h2 className="mt-2 text-3xl font-bold">
+                  {manageCount}
+                </h2>
               </div>
+
               <div className="rounded-xl bg-purple-100 p-3 text-purple-600 dark:bg-purple-900/40">
                 <Lock size={24} />
               </div>
@@ -295,15 +413,16 @@ export default function Permissions() {
               <Search
                 size={19}
                 className={`absolute top-1/2 -translate-y-1/2 text-gray-400 ${
-                  language === "fa" || language === "ps" ? "right-4" : "left-4"
+                  rtl ? "right-4" : "left-4"
                 }`}
               />
+
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t.search}
                 className={`${inputClass} ${
-                  language === "fa" || language === "ps" ? "pr-11" : "pl-11"
+                  rtl ? "pr-11" : "pl-11"
                 }`}
               />
             </div>
@@ -327,75 +446,108 @@ export default function Permissions() {
               <thead className="bg-gray-100 dark:bg-gray-900">
                 <tr>
                   <th className="px-5 py-4 text-start font-semibold">#</th>
-                  <th className="px-5 py-4 text-start font-semibold">{t.code}</th>
-                  <th className="px-5 py-4 text-start font-semibold">{t.description}</th>
-                  <th className="px-5 py-4 text-center font-semibold">{t.actions}</th>
+                  <th className="px-5 py-4 text-start font-semibold">
+                    {t.code}
+                  </th>
+                  <th className="px-5 py-4 text-start font-semibold">
+                    {t.description}
+                  </th>
+                  <th className="px-5 py-4 text-center font-semibold">
+                    {t.actions}
+                  </th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredPermissions.map((permission, index) => (
-                  <tr
-                    key={permission.id}
-                    className="transition hover:bg-gray-50 dark:hover:bg-gray-700/40"
-                  >
-                    <td className="px-5 py-4">{index + 1}</td>
-
-                    <td className="px-5 py-4">
-                      <span className="rounded-lg bg-blue-100 px-3 py-1.5 font-mono text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                        {permission.code}
-                      </span>
-                    </td>
-
-                    <td className={`max-w-md px-5 py-4 ${mutedText}`}>
-                      {permission.description || "—"}
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <div className="flex justify-center gap-1">
-                        <button
-                          title={t.view}
-                          onClick={() => openView(permission)}
-                          className={buttonClass}
-                        >
-                          <Eye size={17} />
-                        </button>
-
-                        <button
-                          title={t.edit}
-                          onClick={() => openEdit(permission)}
-                          className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                        >
-                          <Pencil size={17} />
-                        </button>
-
-                        <button
-                          title={t.delete}
-                          onClick={() => {
-                            setSelected(permission);
-                            setModal("delete");
-                          }}
-                          className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-900/30"
-                        >
-                          <Trash2 size={17} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-
-                {filteredPermissions.length === 0 && (
+                {loading ? (
                   <tr>
-                    <td colSpan="4" className={`px-5 py-12 text-center ${mutedText}`}>
-                      <ShieldCheck size={35} className="mx-auto mb-3 opacity-40" />
-                      {t.noData}
+                    <td
+                      colSpan="4"
+                      className={`px-5 py-12 text-center ${mutedText}`}
+                    >
+                      {t.loading}
                     </td>
                   </tr>
+                ) : (
+                  <>
+                    {filteredPermissions.map((permission, index) => (
+                      <tr
+                        key={permission.id}
+                        className="transition hover:bg-gray-50 dark:hover:bg-gray-700/40"
+                      >
+                        <td className="px-5 py-4">{index + 1}</td>
+
+                        <td className="px-5 py-4">
+                          <span className="rounded-lg bg-blue-100 px-3 py-1.5 font-mono text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                            {permission.code}
+                          </span>
+                        </td>
+
+                        <td className={`max-w-md px-5 py-4 ${mutedText}`}>
+                          {permission.description || "—"}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <div className="flex justify-center gap-1">
+                            <button
+                              title={t.view}
+                              onClick={() => openView(permission)}
+                              className={buttonClass}
+                            >
+                              <Eye size={17} />
+                            </button>
+
+                            <button
+                              title={t.edit}
+                              onClick={() => openEdit(permission)}
+                              className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                            >
+                              <Pencil size={17} />
+                            </button>
+
+                            <button
+                              title={t.delete}
+                              onClick={() => {
+                                setSelected(permission);
+                                setError("");
+                                setModal("delete");
+                              }}
+                              className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-900/30"
+                            >
+                              <Trash2 size={17} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+
+                    {filteredPermissions.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan="4"
+                          className={`px-5 py-12 text-center ${mutedText}`}
+                        >
+                          <ShieldCheck
+                            size={35}
+                            className="mx-auto mb-3 opacity-40"
+                          />
+                          {t.noData}
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 )}
               </tbody>
             </table>
           </div>
         </div>
+
+        {/* Load Error */}
+        {error && !modal && (
+          <p className="rounded-xl bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+            {error}
+          </p>
+        )}
 
         {/* Modal */}
         {modal && (
@@ -417,14 +569,21 @@ export default function Permissions() {
                 </button>
               </div>
 
+              {/* Add and Edit */}
               {(modal === "add" || modal === "edit") && (
                 <div className="space-y-4">
                   <div>
-                    <label className="mb-2 block text-sm font-medium">{t.code}</label>
+                    <label className="mb-2 block text-sm font-medium">
+                      {t.code}
+                    </label>
+
                     <input
                       value={form.code}
                       onChange={(e) => {
-                        setForm({ ...form, code: e.target.value });
+                        setForm({
+                          ...form,
+                          code: e.target.value,
+                        });
                         setError("");
                       }}
                       placeholder="e.g. carpets.read"
@@ -433,12 +592,18 @@ export default function Permissions() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium">{t.description}</label>
+                    <label className="mb-2 block text-sm font-medium">
+                      {t.description}
+                    </label>
+
                     <textarea
                       rows="4"
                       value={form.description}
                       onChange={(e) =>
-                        setForm({ ...form, description: e.target.value })
+                        setForm({
+                          ...form,
+                          description: e.target.value,
+                        })
                       }
                       placeholder={t.description}
                       className={inputClass}
@@ -455,12 +620,19 @@ export default function Permissions() {
                   <div className="flex gap-3 pt-2">
                     <button
                       onClick={handleSave}
-                      className="flex-1 rounded-xl bg-blue-600 px-4 py-3 font-medium text-white transition hover:bg-blue-700"
+                      disabled={saving}
+                      className="flex-1 rounded-xl bg-blue-600 px-4 py-3 font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {modal === "add" ? t.save : t.update}
+                      {saving
+                        ? "..."
+                        : modal === "add"
+                          ? t.save
+                          : t.update}
                     </button>
+
                     <button
                       onClick={() => setModal(null)}
+                      disabled={saving}
                       className="rounded-xl border border-gray-300 px-5 py-3 transition hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700"
                     >
                       {t.cancel}
@@ -469,17 +641,24 @@ export default function Permissions() {
                 </div>
               )}
 
+              {/* View */}
               {modal === "view" && selected && (
                 <div className="space-y-4">
                   <div>
-                    <p className={`mb-2 text-sm ${mutedText}`}>{t.code}</p>
+                    <p className={`mb-2 text-sm ${mutedText}`}>
+                      {t.code}
+                    </p>
+
                     <p className="rounded-xl bg-blue-50 p-4 font-mono font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                       {selected.code}
                     </p>
                   </div>
 
                   <div>
-                    <p className={`mb-2 text-sm ${mutedText}`}>{t.description}</p>
+                    <p className={`mb-2 text-sm ${mutedText}`}>
+                      {t.description}
+                    </p>
+
                     <p className="rounded-xl bg-gray-100 p-4 text-sm dark:bg-gray-900">
                       {selected.description || "—"}
                     </p>
@@ -494,29 +673,43 @@ export default function Permissions() {
                 </div>
               )}
 
+              {/* Delete */}
               {modal === "delete" && selected && (
                 <div className="space-y-5">
                   <div className="flex items-start gap-3">
                     <div className="rounded-xl bg-red-100 p-3 text-red-600 dark:bg-red-900/30">
                       <AlertTriangle size={23} />
                     </div>
+
                     <div>
-                      <p className="font-medium">{t.deleteMessage}</p>
+                      <p className="font-medium">
+                        {t.deleteMessage}
+                      </p>
+
                       <p className={`mt-2 font-mono text-sm ${mutedText}`}>
                         {selected.code}
                       </p>
                     </div>
                   </div>
 
+                  {error && (
+                    <p className="text-sm text-red-500">
+                      {error}
+                    </p>
+                  )}
+
                   <div className="flex gap-3">
                     <button
                       onClick={handleDelete}
-                      className="flex-1 rounded-xl bg-red-600 px-4 py-3 font-medium text-white transition hover:bg-red-700"
+                      disabled={saving}
+                      className="flex-1 rounded-xl bg-red-600 px-4 py-3 font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {t.confirmDelete}
+                      {saving ? "..." : t.confirmDelete}
                     </button>
+
                     <button
                       onClick={() => setModal(null)}
+                      disabled={saving}
                       className="rounded-xl border border-gray-300 px-5 py-3 transition hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700"
                     >
                       {t.cancel}
