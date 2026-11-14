@@ -203,10 +203,18 @@ export default function Employee() {
       setError("");
 
       const employeeData = {
-        ...form,
+        first_name: form.first_name,
+        last_name: form.last_name,
+        phone: form.phone,
+        email: form.email,
+        job_title: form.job_title,
         salary: form.salary === "" ? null : Number(form.salary),
+        hire_date: form.hire_date,
+        status: form.status,
+        shift_start: form.shift_start,
+        shift_end: form.shift_end,
       };
-
+      
       if (selected) {
         await updateEmployee(selected.id, employeeData);
       } else {

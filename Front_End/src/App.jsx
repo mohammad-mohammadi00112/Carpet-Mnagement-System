@@ -42,6 +42,8 @@ import RolePermissions from "./Features/administration/Rolepermissions"
 import AuditLog from "./Features/administration/Auditlog"
 // System Settings 
 import Settings from './Features/settings/Settings'
+// Dashboard Component 
+import Dashbaord from './Features/dashboard/Dashboard'
 const App = () => {
   return (
     <Routes>
@@ -49,7 +51,7 @@ const App = () => {
 
       {/* Dashboard Layout */}
       <Route element={<Home />}>
-        <Route path="/dashboard" element={<div>Dashboard</div>} />
+        <Route path="/dashboard" element={<Dashbaord />} />
 
         {/* Carpet Management */}
         <Route path="/carpets" element={<Carpets />} />

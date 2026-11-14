@@ -160,6 +160,8 @@ export default function Purchases() {
 
     try {
       const result = await getPurchases();
+      console.log('Purchase Result', result)
+      console.log('id Array', Array.isArray(result))
 
       if (!Array.isArray(result)) {
         throw new Error("Invalid purchases response from server.");

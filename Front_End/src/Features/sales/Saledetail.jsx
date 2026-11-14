@@ -1,4 +1,7 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+
 import {
   Search,
   Plus,
@@ -12,12 +15,55 @@ import {
   RefreshCw,
   AlertCircle,
 } from "lucide-react";
+
 import {
   getSaleDetails,
   createSaleDetail,
   updateSaleDetail,
   deleteSaleDetail,
 } from "../services/sales/saleDetailService";
+
+import { getCarpets } from "../services/carpets/carpetService";
+import { getLocations } from "../services/locations/locationService";
+
+// Keep Field outside SaleDetails to prevent input remounting.
+const Field = ({ label, children }) => (
+  <label className="block space-y-1.5">
+    <span className="text-sm font-medium">{label}</span>
+    {children}
+  </label>
+);
+
+// Support both direct arrays and common API response wrappers.
+const getArray = (data, keys = []) => {
+  if (Array.isArray(data)) return data;
+
+  for (const key of keys) {
+    if (Array.isArray(data?.[key])) return data[key];
+  }
+
+  if (Array.isArray(data?.data)) return data.data;
+
+  return [];
+};
+
+const getCarpetCode = (carpet) =>
+  carpet.carpet_code ??
+  carpet.code ??
+  carpet.carpetCode ??
+  "";
+
+const getCarpetName = (carpet) =>
+  carpet.carpet_name ??
+  carpet.name ??
+  carpet.title ??
+  "";
+
+const getLocationName = (location) =>
+  location.location_name ??
+  location.name ??
+  location.location ??
+  "";
 
 const translations = {
   en: {
@@ -30,8 +76,8 @@ const translations = {
     revenue: "Total Amount",
     discounts: "Total Discounts",
     sale: "Sale ID",
-    carpet: "Carpet ID",
-    location: "Location ID",
+    carpet: "Carpet",
+    location: "Location",
     qty: "Quantity",
     price: "Sale Price",
     discount: "Discount",
@@ -51,8 +97,8 @@ const translations = {
     confirmDelete: "Are you sure you want to delete this item?",
     required: "Please enter valid values in all required fields.",
     salePlaceholder: "Enter sale ID",
-    carpetPlaceholder: "Enter carpet ID",
-    locationPlaceholder: "Enter location ID",
+    carpetPlaceholder: "Select a carpet",
+    locationPlaceholder: "Select a location",
     qtyPlaceholder: "Enter quantity",
     pricePlaceholder: "Enter sale price",
     discountPlaceholder: "Enter discount",
@@ -67,7 +113,14 @@ const translations = {
     updateSuccess: "Sale detail updated successfully.",
     deleteSuccess: "Sale detail deleted successfully.",
     stockHint: "Stock is updated automatically when sale details are added, edited or deleted.",
+    loadingOptions: "Loading options...",
+    noCarpets: "No carpets found",
+    noLocations: "No locations found",
+    lookupError: "Could not load carpets or locations.",
+    carpetUnavailable: "Selected carpet is not available",
+    locationUnavailable: "Selected location is not available",
   },
+
   fa: {
     title: "جزئیات فروش",
     subtitle: "مدیریت اقلام شامل‌شده در فروش‌ها",
@@ -78,8 +131,8 @@ const translations = {
     revenue: "مجموع مبلغ",
     discounts: "مجموع تخفیف‌ها",
     sale: "شماره فروش",
-    carpet: "شماره قالین",
-    location: "شماره موقعیت",
+    carpet: "قالین",
+    location: "موقعیت",
     qty: "تعداد",
     price: "قیمت فروش",
     discount: "تخفیف",
@@ -99,8 +152,8 @@ const translations = {
     confirmDelete: "آیا مطمئن هستید که این مورد حذف شود؟",
     required: "لطفاً مقادیر معتبر را در تمام خانه‌های ضروری وارد کنید.",
     salePlaceholder: "شماره فروش را وارد کنید",
-    carpetPlaceholder: "شماره قالین را وارد کنید",
-    locationPlaceholder: "شماره موقعیت را وارد کنید",
+    carpetPlaceholder: "یک قالین انتخاب کنید",
+    locationPlaceholder: "یک موقعیت انتخاب کنید",
     qtyPlaceholder: "تعداد را وارد کنید",
     pricePlaceholder: "قیمت فروش را وارد کنید",
     discountPlaceholder: "تخفیف را وارد کنید",
@@ -115,7 +168,14 @@ const translations = {
     updateSuccess: "جزئیات فروش موفقانه ویرایش شد.",
     deleteSuccess: "جزئیات فروش موفقانه حذف شد.",
     stockHint: "موجودی هنگام افزودن، ویرایش یا حذف جزئیات فروش به‌صورت خودکار تغییر می‌کند.",
+    loadingOptions: "در حال بارگذاری گزینه‌ها...",
+    noCarpets: "هیچ قالینی یافت نشد",
+    noLocations: "هیچ موقعیتی یافت نشد",
+    lookupError: "بارگذاری قالین‌ها یا موقعیت‌ها انجام نشد.",
+    carpetUnavailable: "قالین انتخاب‌شده موجود نیست",
+    locationUnavailable: "موقعیت انتخاب‌شده موجود نیست",
   },
+
   ps: {
     title: "د پلور جزئیات",
     subtitle: "د پلور توکي مدیریت کړئ",
@@ -126,8 +186,8 @@ const translations = {
     revenue: "ټوله اندازه",
     discounts: "ټول تخفیفونه",
     sale: "د پلور شمېره",
-    carpet: "د غالۍ شمېره",
-    location: "د ځای شمېره",
+    carpet: "غالۍ",
+    location: "ځای",
     qty: "شمېر",
     price: "د پلور بیه",
     discount: "تخفیف",
@@ -147,8 +207,8 @@ const translations = {
     confirmDelete: "ایا غواړئ دا توکی ړنګ کړئ؟",
     required: "مهرباني وکړئ ټول اړین ځایونه سم ډک کړئ.",
     salePlaceholder: "د پلور شمېره ولیکئ",
-    carpetPlaceholder: "د غالۍ شمېره ولیکئ",
-    locationPlaceholder: "د ځای شمېره ولیکئ",
+    carpetPlaceholder: "یوه غالۍ وټاکئ",
+    locationPlaceholder: "یو ځای وټاکئ",
     qtyPlaceholder: "شمېر ولیکئ",
     pricePlaceholder: "د پلور بیه ولیکئ",
     discountPlaceholder: "تخفیف ولیکئ",
@@ -163,6 +223,12 @@ const translations = {
     updateSuccess: "د پلور جزئیات په بریالیتوب سم شول.",
     deleteSuccess: "د پلور جزئیات په بریالیتوب ړنګ شول.",
     stockHint: "زېرمه د پلور جزئیاتو په زیاتولو، سمولو او ړنګولو سره په اتومات ډول بدلېږي.",
+    loadingOptions: "اختیارونه پورته کېږي...",
+    noCarpets: "هیڅ غالۍ ونه موندل شوه",
+    noLocations: "هیڅ ځای ونه موندل شو",
+    lookupError: "د غالیو یا ځایونو معلومات پورته نه شول.",
+    carpetUnavailable: "ټاکل شوې غالۍ شتون نه لري",
+    locationUnavailable: "ټاکل شوی ځای شتون نه لري",
   },
 };
 
@@ -177,33 +243,59 @@ const emptyForm = {
 
 const money = (value, language) =>
   Number(value || 0).toLocaleString(
-    language === "en" ? "en-US" : language === "ps" ? "ps-AF" : "fa-IR",
+    language === "en"
+      ? "en-US"
+      : language === "ps"
+        ? "ps-AF"
+        : "fa-IR",
     { maximumFractionDigits: 2 }
   );
 
 export default function SaleDetails() {
-  const language = localStorage.getItem("language") || "en";
+  const { i18n } = useTranslation();
+
+  const language = (
+    i18n.resolvedLanguage ||
+    i18n.language ||
+    localStorage.getItem("language") ||
+    "en"
+  ).toLowerCase().split("-")[0];
+
   const t = translations[language] || translations.en;
   const isRTL = language === "fa" || language === "ps";
 
   const [details, setDetails] = useState([]);
+  const [carpets, setCarpets] = useState([]);
+  const [locations, setLocations] = useState([]);
+
   const [loading, setLoading] = useState(true);
+  const [loadingOptions, setLoadingOptions] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState(false);
   const [viewItem, setViewItem] = useState(null);
   const [editingId, setEditingId] = useState(null);
+
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  const inputClass =
+    "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
+
+  const cardClass =
+    "rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900";
+
+  // Load sale details.
   const fetchDetails = useCallback(async () => {
     setLoading(true);
     setError("");
+
     try {
       const data = await getSaleDetails();
-      setDetails(Array.isArray(data) ? data : []);
+      setDetails(getArray(data, ["saleDetails", "sale_details", "details"]));
     } catch (err) {
       setError(err.response?.data?.message || t.loadError);
     } finally {
@@ -211,40 +303,126 @@ export default function SaleDetails() {
     }
   }, [t.loadError]);
 
+  // Load carpets and locations independently of sale details.
+  const fetchOptions = useCallback(async () => {
+    setLoadingOptions(true);
+
+    try {
+      const [carpetResponse, locationResponse] = await Promise.all([
+        getCarpets(),
+        getLocations(),
+      ]);
+
+      setCarpets(
+        getArray(carpetResponse, ["carpets", "rows", "results"])
+      );
+
+      setLocations(
+        getArray(locationResponse, ["locations", "rows", "results"])
+      );
+    } catch (err) {
+      console.error("Sale Details options loading error:", err);
+      setError(err.response?.data?.message || t.lookupError);
+    } finally {
+      setLoadingOptions(false);
+    }
+  }, [t.lookupError]);
+
   useEffect(() => {
     fetchDetails();
-  }, [fetchDetails]);
+    fetchOptions();
+  }, [fetchDetails, fetchOptions]);
+
+  // Find a carpet by its database ID.
+  const findCarpet = useCallback(
+    (id) => carpets.find((carpet) => String(carpet.id) === String(id)),
+    [carpets]
+  );
+
+  // Find a location by its database ID.
+  const findLocation = useCallback(
+    (id) =>
+      locations.find((location) => String(location.id) === String(id)),
+    [locations]
+  );
+
+  // Display a readable carpet label instead of its database ID.
+  const carpetLabel = useCallback(
+    (id) => {
+      const carpet = findCarpet(id);
+
+      if (!carpet) return `Carpet #${id}`;
+
+      const code = getCarpetCode(carpet);
+      const name = getCarpetName(carpet);
+
+      return [code, name].filter(Boolean).join(" - ") || `Carpet #${id}`;
+    },
+    [findCarpet]
+  );
+
+  // Display a readable location label instead of its database ID.
+  const locationLabel = useCallback(
+    (id) => {
+      const location = findLocation(id);
+
+      if (!location) return `Location #${id}`;
+
+      return getLocationName(location) || `Location #${id}`;
+    },
+    [findLocation]
+  );
 
   const filteredDetails = useMemo(() => {
     const term = search.trim().toLowerCase();
+
     if (!term) return details;
-    return details.filter((item) =>
-      [item.id, item.sale_id, item.carpet_id, item.location_id]
-        .some((value) => String(value ?? "").toLowerCase().includes(term))
-    );
-  }, [details, search]);
+
+    return details.filter((item) => {
+      const searchable = [
+        item.id,
+        item.sale_id,
+        item.carpet_id,
+        item.location_id,
+        carpetLabel(item.carpet_id),
+        locationLabel(item.location_id),
+      ];
+
+      return searchable.some((value) =>
+        String(value ?? "").toLowerCase().includes(term)
+      );
+    });
+  }, [details, search, carpetLabel, locationLabel]);
 
   const totalQuantity = details.reduce(
-    (sum, item) => sum + Number(item.quantity || 0), 0
+    (sum, item) => sum + Number(item.quantity || 0),
+    0
   );
 
   const totalAmount = details.reduce(
-    (sum, item) => sum + Number(item.quantity || 0) * Number(item.sale_price || 0) - Number(item.discount || 0), 0
+    (sum, item) =>
+      sum +
+      Number(item.quantity || 0) * Number(item.sale_price || 0) -
+      Number(item.discount || 0),
+    0
   );
 
   const totalDiscount = details.reduce(
-    (sum, item) => sum + Number(item.discount || 0), 0
+    (sum, item) => sum + Number(item.discount || 0),
+    0
   );
 
   const openAdd = () => {
     setEditingId(null);
     setForm({ ...emptyForm });
     setError("");
+    setNotice("");
     setModal(true);
   };
 
   const openEdit = (item) => {
     setEditingId(item.id);
+
     setForm({
       sale_id: String(item.sale_id ?? ""),
       carpet_id: String(item.carpet_id ?? ""),
@@ -253,13 +431,16 @@ export default function SaleDetails() {
       sale_price: String(item.sale_price ?? ""),
       discount: String(item.discount ?? 0),
     });
+
     setViewItem(null);
     setError("");
+    setNotice("");
     setModal(true);
   };
 
   const closeModal = () => {
     if (saving) return;
+
     setModal(false);
     setEditingId(null);
     setForm({ ...emptyForm });
@@ -274,17 +455,24 @@ export default function SaleDetails() {
     const discount = Number(form.discount || 0);
 
     if (
-      !form.sale_id || !form.carpet_id || !form.location_id ||
-      form.quantity === "" || form.sale_price === "" ||
-      !Number.isFinite(quantity) || !Number.isFinite(salePrice) ||
-      !Number.isFinite(discount) || quantity <= 0 ||
-      salePrice < 0 || discount < 0 ||
+      !form.sale_id ||
+      !form.carpet_id ||
+      !form.location_id ||
+      form.quantity === "" ||
+      form.sale_price === "" ||
+      !Number.isFinite(quantity) ||
+      !Number.isFinite(salePrice) ||
+      !Number.isFinite(discount) ||
+      quantity <= 0 ||
+      salePrice < 0 ||
+      discount < 0 ||
       discount > quantity * salePrice
     ) {
       setError(t.required);
       return;
     }
 
+    // The selected options contain the real database IDs.
     const detailData = {
       sale_id: Number(form.sale_id),
       carpet_id: Number(form.carpet_id),
@@ -310,6 +498,7 @@ export default function SaleDetails() {
       setModal(false);
       setEditingId(null);
       setForm({ ...emptyForm });
+
       await fetchDetails();
     } catch (err) {
       setError(err.response?.data?.message || t.saveError);
@@ -327,7 +516,11 @@ export default function SaleDetails() {
 
     try {
       await deleteSaleDetail(id);
-      setDetails((current) => current.filter((item) => item.id !== id));
+
+      setDetails((current) =>
+        current.filter((item) => item.id !== id)
+      );
+
       setViewItem(null);
       setNotice(t.deleteSuccess);
     } catch (err) {
@@ -337,94 +530,197 @@ export default function SaleDetails() {
     }
   };
 
-  const inputClass =
-    "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
-
-  const cardClass =
-    "rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900";
-
-  const Field = ({ label, children }) => (
-    <label className="block space-y-1.5">
-      <span className="text-sm font-medium">{label}</span>
-      {children}
-    </label>
-  );
-
   return (
-    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-6 p-3 text-gray-800 dark:text-gray-100 sm:p-5 lg:p-6">
+    <div
+      dir={isRTL ? "rtl" : "ltr"}
+      lang={language}
+      className="space-y-6 p-3 text-gray-800 dark:text-gray-100 sm:p-5 lg:p-6"
+    >
+      {/* Header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold">{t.title}</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t.subtitle}</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {t.subtitle}
+          </p>
         </div>
+
         <div className="flex flex-wrap gap-2">
-          <button onClick={fetchDetails} className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
-            <RefreshCw size={17} /> {t.refresh}
+          <button
+            onClick={() => {
+              fetchDetails();
+              fetchOptions();
+            }}
+            className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+          >
+            <RefreshCw size={17} />
+            {t.refresh}
           </button>
-          <button onClick={openAdd} className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700">
-            <Plus size={18} /> {t.add}
+
+          <button
+            onClick={openAdd}
+            className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+          >
+            <Plus size={18} />
+            {t.add}
           </button>
         </div>
       </div>
 
-      {notice && <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300">{notice}</div>}
-      {error && <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"><AlertCircle size={17} />{error}</div>}
+      {/* Messages */}
+      {notice && (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300">
+          {notice}
+        </div>
+      )}
 
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+          <AlertCircle size={17} />
+          {error}
+        </div>
+      )}
+
+      {/* Statistics */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className={cardClass}>
-          <div className="flex items-center justify-between"><p className="text-sm text-gray-500 dark:text-gray-400">{t.total}</p><ShoppingCart className="text-blue-500" /></div>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t.total}</p>
+            <ShoppingCart className="text-blue-500" />
+          </div>
           <p className="mt-3 text-2xl font-bold">{details.length}</p>
         </div>
+
         <div className={cardClass}>
-          <div className="flex items-center justify-between"><p className="text-sm text-gray-500 dark:text-gray-400">{t.quantity}</p><Package className="text-purple-500" /></div>
-          <p className="mt-3 text-2xl font-bold">{money(totalQuantity, language)}</p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t.quantity}</p>
+            <Package className="text-purple-500" />
+          </div>
+          <p className="mt-3 text-2xl font-bold">
+            {money(totalQuantity, language)}
+          </p>
         </div>
+
         <div className={cardClass}>
-          <div className="flex items-center justify-between"><p className="text-sm text-gray-500 dark:text-gray-400">{t.revenue}</p><DollarSign className="text-green-500" /></div>
-          <p className="mt-3 text-2xl font-bold">{money(totalAmount, language)}</p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t.revenue}</p>
+            <DollarSign className="text-green-500" />
+          </div>
+          <p className="mt-3 text-2xl font-bold">
+            {money(totalAmount, language)}
+          </p>
           <p className="mt-1 text-xs text-gray-400">{t.currency}</p>
         </div>
+
         <div className={cardClass}>
-          <div className="flex items-center justify-between"><p className="text-sm text-gray-500 dark:text-gray-400">{t.discounts}</p><DollarSign className="text-orange-500" /></div>
-          <p className="mt-3 text-2xl font-bold">{money(totalDiscount, language)}</p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t.discounts}</p>
+            <DollarSign className="text-orange-500" />
+          </div>
+          <p className="mt-3 text-2xl font-bold">
+            {money(totalDiscount, language)}
+          </p>
           <p className="mt-1 text-xs text-gray-400">{t.currency}</p>
         </div>
       </div>
 
+      {/* Table and Search */}
       <div className={cardClass}>
         <div className="relative w-full sm:max-w-md">
-          <Search size={18} className={`absolute top-1/2 -translate-y-1/2 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t.search} className={`${inputClass} ${isRTL ? "pr-10" : "pl-10"}`} />
+          <Search
+            size={18}
+            className={`absolute top-1/2 -translate-y-1/2 text-gray-400 ${
+              isRTL ? "right-3" : "left-3"
+            }`}
+          />
+
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t.search}
+            className={`${inputClass} ${isRTL ? "pr-10" : "pl-10"}`}
+          />
         </div>
 
         <p className="mt-3 text-xs text-gray-400">{t.stockHint}</p>
 
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-500"><RefreshCw size={18} className="animate-spin" />{t.loading}</div>
+          <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-500">
+            <RefreshCw size={18} className="animate-spin" />
+            {t.loading}
+          </div>
         ) : (
           <>
+            {/* Desktop Table */}
             <div className="mt-5 hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[850px] text-sm">
+              <table className="w-full min-w-[900px] text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                    {[t.sale, t.carpet, t.location, t.qty, t.price, t.discount, t.amount, t.actions].map((heading) => <th key={heading} className="px-3 py-3 text-start font-semibold">{heading}</th>)}
+                    {[
+                      t.sale,
+                      t.carpet,
+                      t.location,
+                      t.qty,
+                      t.price,
+                      t.discount,
+                      t.amount,
+                      t.actions,
+                    ].map((heading) => (
+                      <th key={heading} className="px-3 py-3 text-start font-semibold">
+                        {heading}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
+
                 <tbody>
                   {filteredDetails.map((item) => (
-                    <tr key={item.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50">
+                    <tr
+                      key={item.id}
+                      className="border-b border-gray-100 last:border-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50"
+                    >
                       <td className="px-3 py-4 font-semibold">#{item.sale_id}</td>
-                      <td className="px-3 py-4">#{item.carpet_id}</td>
-                      <td className="px-3 py-4">#{item.location_id}</td>
+                      <td className="px-3 py-4">{carpetLabel(item.carpet_id)}</td>
+                      <td className="px-3 py-4">{locationLabel(item.location_id)}</td>
                       <td className="px-3 py-4">{item.quantity}</td>
                       <td className="px-3 py-4">{money(item.sale_price, language)}</td>
-                      <td className="px-3 py-4 text-orange-500">{money(item.discount, language)}</td>
-                      <td className="px-3 py-4 font-semibold">{money(Number(item.quantity) * Number(item.sale_price) - Number(item.discount), language)}</td>
+                      <td className="px-3 py-4 text-orange-500">
+                        {money(item.discount, language)}
+                      </td>
+                      <td className="px-3 py-4 font-semibold">
+                        {money(
+                          Number(item.quantity) * Number(item.sale_price) -
+                          Number(item.discount),
+                          language
+                        )}
+                      </td>
+
                       <td className="px-3 py-4">
                         <div className="flex items-center gap-2">
-                          <button onClick={() => setViewItem(item)} className="rounded-lg p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20" title={t.view}><Eye size={17} /></button>
-                          <button onClick={() => openEdit(item)} className="rounded-lg p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20" title={t.edit}><Pencil size={17} /></button>
-                          <button disabled={deletingId === item.id} onClick={() => handleDelete(item.id)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-900/20" title={t.delete}><Trash2 size={17} /></button>
+                          <button
+                            onClick={() => setViewItem(item)}
+                            className="rounded-lg p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                            title={t.view}
+                          >
+                            <Eye size={17} />
+                          </button>
+
+                          <button
+                            onClick={() => openEdit(item)}
+                            className="rounded-lg p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                            title={t.edit}
+                          >
+                            <Pencil size={17} />
+                          </button>
+
+                          <button
+                            disabled={deletingId === item.id}
+                            onClick={() => handleDelete(item.id)}
+                            className="rounded-lg p-2 text-red-500 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-900/20"
+                            title={t.delete}
+                          >
+                            <Trash2 size={17} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -433,91 +729,385 @@ export default function SaleDetails() {
               </table>
             </div>
 
+            {/* Mobile Cards */}
             <div className="mt-4 grid gap-3 md:hidden">
               {filteredDetails.map((item) => (
-                <div key={item.id} className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-gray-200 p-4 dark:border-gray-700"
+                >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-bold">#{item.id} · {t.sale} #{item.sale_id}</span>
-                    <span className="text-sm font-semibold text-green-600">{money(Number(item.quantity) * Number(item.sale_price) - Number(item.discount), language)} {t.currency}</span>
+                    <span className="font-bold">
+                      #{item.id} · {t.sale} #{item.sale_id}
+                    </span>
+
+                    <span className="text-sm font-semibold text-green-600">
+                      {money(
+                        Number(item.quantity) * Number(item.sale_price) -
+                        Number(item.discount),
+                        language
+                      )} {t.currency}
+                    </span>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                    <p className="text-gray-500 dark:text-gray-400">{t.carpet}: <span className="font-medium text-gray-800 dark:text-white">#{item.carpet_id}</span></p>
-                    <p className="text-gray-500 dark:text-gray-400">{t.location}: <span className="font-medium text-gray-800 dark:text-white">#{item.location_id}</span></p>
-                    <p className="text-gray-500 dark:text-gray-400">{t.qty}: <span className="font-medium text-gray-800 dark:text-white">{item.quantity}</span></p>
-                    <p className="text-gray-500 dark:text-gray-400">{t.price}: <span className="font-medium text-gray-800 dark:text-white">{money(item.sale_price, language)}</span></p>
-                    <p className="text-gray-500 dark:text-gray-400">{t.discount}: <span className="font-medium text-gray-800 dark:text-white">{money(item.discount, language)}</span></p>
+
+                  <div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                    <p className="text-gray-500 dark:text-gray-400">
+                      {t.carpet}:{" "}
+                      <span className="font-medium text-gray-800 dark:text-white">
+                        {carpetLabel(item.carpet_id)}
+                      </span>
+                    </p>
+
+                    <p className="text-gray-500 dark:text-gray-400">
+                      {t.location}:{" "}
+                      <span className="font-medium text-gray-800 dark:text-white">
+                        {locationLabel(item.location_id)}
+                      </span>
+                    </p>
+
+                    <p className="text-gray-500 dark:text-gray-400">
+                      {t.qty}:{" "}
+                      <span className="font-medium text-gray-800 dark:text-white">
+                        {item.quantity}
+                      </span>
+                    </p>
+
+                    <p className="text-gray-500 dark:text-gray-400">
+                      {t.price}:{" "}
+                      <span className="font-medium text-gray-800 dark:text-white">
+                        {money(item.sale_price, language)}
+                      </span>
+                    </p>
+
+                    <p className="text-gray-500 dark:text-gray-400">
+                      {t.discount}:{" "}
+                      <span className="font-medium text-gray-800 dark:text-white">
+                        {money(item.discount, language)}
+                      </span>
+                    </p>
                   </div>
+
                   <div className="mt-4 flex justify-end gap-2 border-t border-gray-100 pt-3 dark:border-gray-700">
-                    <button onClick={() => setViewItem(item)} className="rounded-lg p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"><Eye size={17} /></button>
-                    <button onClick={() => openEdit(item)} className="rounded-lg p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20"><Pencil size={17} /></button>
-                    <button disabled={deletingId === item.id} onClick={() => handleDelete(item.id)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-900/20"><Trash2 size={17} /></button>
+                    <button
+                      onClick={() => setViewItem(item)}
+                      className="rounded-lg p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                    >
+                      <Eye size={17} />
+                    </button>
+
+                    <button
+                      onClick={() => openEdit(item)}
+                      className="rounded-lg p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                    >
+                      <Pencil size={17} />
+                    </button>
+
+                    <button
+                      disabled={deletingId === item.id}
+                      onClick={() => handleDelete(item.id)}
+                      className="rounded-lg p-2 text-red-500 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-900/20"
+                    >
+                      <Trash2 size={17} />
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
 
-            {filteredDetails.length === 0 && <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">{t.noData}</p>}
+            {filteredDetails.length === 0 && (
+              <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                {t.noData}
+              </p>
+            )}
           </>
         )}
       </div>
 
+      {/* Add / Edit Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-3" onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) closeModal(); }}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-3"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !saving) closeModal();
+          }}
+        >
           <div className="my-auto w-full max-w-xl rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900 sm:p-6">
             <div className="mb-5 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold">{editingId !== null ? t.editTitle : t.addTitle}</h2>
-              <button type="button" onClick={closeModal} className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800"><X size={20} /></button>
+              <h2 className="text-lg font-bold">
+                {editingId !== null ? t.editTitle : t.addTitle}
+              </h2>
+
+              <button
+                type="button"
+                onClick={closeModal}
+                disabled={saving}
+                className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <X size={20} />
+              </button>
             </div>
 
             <form onSubmit={handleSave} className="space-y-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label={t.sale}><input type="number" min="1" required value={form.sale_id} onChange={(e) => setForm({ ...form, sale_id: e.target.value })} placeholder={t.salePlaceholder} className={inputClass} /></Field>
-                <Field label={t.carpet}><input type="number" min="1" required value={form.carpet_id} onChange={(e) => setForm({ ...form, carpet_id: e.target.value })} placeholder={t.carpetPlaceholder} className={inputClass} /></Field>
-                <Field label={t.location}><input type="number" min="1" required value={form.location_id} onChange={(e) => setForm({ ...form, location_id: e.target.value })} placeholder={t.locationPlaceholder} className={inputClass} /></Field>
-                <Field label={t.qty}><input type="number" min="1" step="1" required value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} placeholder={t.qtyPlaceholder} className={inputClass} /></Field>
-                <Field label={t.price}><input type="number" min="0" step="any" required value={form.sale_price} onChange={(e) => setForm({ ...form, sale_price: e.target.value })} placeholder={t.pricePlaceholder} className={inputClass} /></Field>
-                <Field label={t.discount}><input type="number" min="0" step="any" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} placeholder={t.discountPlaceholder} className={inputClass} /></Field>
+                <Field label={t.sale}>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={form.sale_id}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        sale_id: e.target.value,
+                      }))
+                    }
+                    placeholder={t.salePlaceholder}
+                    className={inputClass}
+                  />
+                </Field>
+
+                {/* Carpet dropdown: display code/name, store carpet.id */}
+                <Field label={t.carpet}>
+                  <select
+                    required
+                    value={form.carpet_id}
+                    disabled={loadingOptions}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        carpet_id: e.target.value,
+                      }))
+                    }
+                    className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`}
+                  >
+                    <option
+                      value=""
+                      className="bg-white text-gray-900 dark:bg-gray-800 dark:text-white"
+                    >
+                      {loadingOptions ? t.loadingOptions : t.carpetPlaceholder}
+                    </option>
+
+                    {form.carpet_id &&
+                      !findCarpet(form.carpet_id) && (
+                        <option
+                          value={form.carpet_id}
+                          className="bg-white text-gray-900 dark:bg-gray-800 dark:text-white"
+                        >
+                          {t.carpetUnavailable} #{form.carpet_id}
+                        </option>
+                      )}
+
+                    {carpets.map((carpet) => (
+                      <option
+                        key={carpet.id}
+                        value={String(carpet.id)}
+                        className="bg-white text-gray-900 dark:bg-gray-800 dark:text-white"
+                      >
+                        {carpetLabel(carpet.id)}
+                      </option>
+                    ))}
+                  </select>
+
+                  {!loadingOptions && carpets.length === 0 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      {t.noCarpets}
+                    </p>
+                  )}
+                </Field>
+
+                {/* Location dropdown: display name, store location.id */}
+                <Field label={t.location}>
+                  <select
+                    required
+                    value={form.location_id}
+                    disabled={loadingOptions}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        location_id: e.target.value,
+                      }))
+                    }
+                    className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`}
+                  >
+                    <option
+                      value=""
+                      className="bg-white text-gray-900 dark:bg-gray-800 dark:text-white"
+                    >
+                      {loadingOptions ? t.loadingOptions : t.locationPlaceholder}
+                    </option>
+
+                    {form.location_id &&
+                      !findLocation(form.location_id) && (
+                        <option
+                          value={form.location_id}
+                          className="bg-white text-gray-900 dark:bg-gray-800 dark:text-white"
+                        >
+                          {t.locationUnavailable} #{form.location_id}
+                        </option>
+                      )}
+
+                    {locations.map((location) => (
+                      <option
+                        key={location.id}
+                        value={String(location.id)}
+                        className="bg-white text-gray-900 dark:bg-gray-800 dark:text-white"
+                      >
+                        {locationLabel(location.id)}
+                      </option>
+                    ))}
+                  </select>
+
+                  {!loadingOptions && locations.length === 0 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      {t.noLocations}
+                    </p>
+                  )}
+                </Field>
+
+                <Field label={t.qty}>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    required
+                    value={form.quantity}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        quantity: e.target.value,
+                      }))
+                    }
+                    placeholder={t.qtyPlaceholder}
+                    className={inputClass}
+                  />
+                </Field>
+
+                <Field label={t.price}>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={form.sale_price}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        sale_price: e.target.value,
+                      }))
+                    }
+                    placeholder={t.pricePlaceholder}
+                    className={inputClass}
+                  />
+                </Field>
+
+                <Field label={t.discount}>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={form.discount}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        discount: e.target.value,
+                      }))
+                    }
+                    placeholder={t.discountPlaceholder}
+                    className={inputClass}
+                  />
+                </Field>
               </div>
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && (
+                <p className="text-sm text-red-600">{error}</p>
+              )}
 
               <div className="flex flex-col-reverse gap-2 pt-3 sm:flex-row sm:justify-end">
-                <button type="button" onClick={closeModal} disabled={saving} className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-800">{t.cancel}</button>
-                <button type="submit" disabled={saving} className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">{saving ? t.saving : t.save}</button>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  disabled={saving}
+                  className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                >
+                  {t.cancel}
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={saving || loadingOptions}
+                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {saving ? t.saving : t.save}
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
+      {/* View Details Modal */}
       {viewItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-3" onMouseDown={(e) => { if (e.target === e.currentTarget) setViewItem(null); }}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-3"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setViewItem(null);
+          }}
+        >
           <div className="my-auto w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-bold">{t.details} #{viewItem.id}</h2>
-              <button onClick={() => setViewItem(null)} className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800"><X size={20} /></button>
+              <h2 className="text-lg font-bold">
+                {t.details} #{viewItem.id}
+              </h2>
+
+              <button
+                onClick={() => setViewItem(null)}
+                className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <X size={20} />
+              </button>
             </div>
 
             <div className="space-y-3 text-sm">
               {[
                 [t.sale, `#${viewItem.sale_id}`],
-                [t.carpet, `#${viewItem.carpet_id}`],
-                [t.location, `#${viewItem.location_id}`],
+                [t.carpet, carpetLabel(viewItem.carpet_id)],
+                [t.location, locationLabel(viewItem.location_id)],
                 [t.qty, viewItem.quantity],
                 [t.price, `${money(viewItem.sale_price, language)} ${t.currency}`],
                 [t.discount, `${money(viewItem.discount, language)} ${t.currency}`],
-                [t.amount, `${money(Number(viewItem.quantity) * Number(viewItem.sale_price) - Number(viewItem.discount), language)} ${t.currency}`],
+                [
+                  t.amount,
+                  `${money(
+                    Number(viewItem.quantity) * Number(viewItem.sale_price) -
+                    Number(viewItem.discount),
+                    language
+                  )} ${t.currency}`,
+                ],
               ].map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-3 border-b border-gray-100 pb-2 dark:border-gray-800">
+                <div
+                  key={label}
+                  className="flex justify-between gap-3 border-b border-gray-100 pb-2 dark:border-gray-800"
+                >
                   <span className="text-gray-500 dark:text-gray-400">{label}</span>
-                  <span className="font-semibold">{value}</span>
+                  <span className="text-end font-semibold">{value}</span>
                 </div>
               ))}
             </div>
 
             <div className="mt-5 flex gap-2">
-              <button onClick={() => openEdit(viewItem)} className="flex-1 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white"><Pencil size={15} className="inline" /> {t.edit}</button>
-              <button onClick={() => setViewItem(null)} className="flex-1 rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold dark:bg-gray-800">{t.close}</button>
+              <button
+                onClick={() => openEdit(viewItem)}
+                className="flex-1 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white"
+              >
+                <Pencil size={15} className="inline" /> {t.edit}
+              </button>
+
+              <button
+                onClick={() => setViewItem(null)}
+                className="flex-1 rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold dark:bg-gray-800"
+              >
+                {t.close}
+              </button>
             </div>
           </div>
         </div>

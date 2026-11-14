@@ -1,5 +1,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+
 import {
   Plus,
   Search,
@@ -13,7 +15,6 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
-  Trash2,
 } from "lucide-react";
 
 import api from "../services/api";
@@ -188,11 +189,24 @@ const formatDate = (value) => {
   return date.toLocaleDateString();
 };
 
-export default function ExchangeRates({ language = "en" }) {
+export default function ExchangeRates({ language }) {
+  const { i18n } = useTranslation();
   const { user } = useAuth();
 
-  const t = translations[language] || translations.en;
-  const isRTL = language === "fa" || language === "ps";
+  // Always follow the current system language.
+  const activeLanguage = (
+    i18n.resolvedLanguage ||
+    i18n.language ||
+    language ||
+    localStorage.getItem("language") ||
+    "en"
+  )
+    .toLowerCase()
+    .split("-")[0];
+
+  const t = translations[activeLanguage] || translations.en;
+
+  const isRTL = ["fa", "ps"].includes(activeLanguage);
 
   const employeeId = user?.id;
 
@@ -268,7 +282,9 @@ export default function ExchangeRates({ language = "en" }) {
   const filteredRates = useMemo(() => {
     return rates
       .filter((item) => {
-        const currency = getCurrency(item.currency_id);
+        const currency = currencies.find(
+          (c) => Number(c.id) === Number(item.currency_id)
+        );
 
         const currencyName = currency
           ? `${currency.name || ""} ${currency.code || ""}`
@@ -415,6 +431,7 @@ export default function ExchangeRates({ language = "en" }) {
   return (
     <div
       dir={isRTL ? "rtl" : "ltr"}
+      lang={activeLanguage}
       className="w-full min-h-screen bg-gray-50 dark:bg-gray-950 p-4 sm:p-6"
     >
       {/* Header */}
@@ -618,6 +635,7 @@ export default function ExchangeRates({ language = "en" }) {
                       >
                         <td className="px-5 py-4 font-medium text-gray-800 dark:text-white">
                           {currency?.name || `Currency #${item.currency_id}`}
+
                           {currency?.code && (
                             <span className="text-gray-400 ml-2">
                               ({currency.code})
@@ -625,8 +643,7 @@ export default function ExchangeRates({ language = "en" }) {
                           )}
 
                           {baseCurrency &&
-                            Number(item.currency_id) ===
-                              Number(baseCurrency.id) && (
+                            Number(item.currency_id) === Number(baseCurrency.id) && (
                               <span className="ml-2 text-xs text-blue-600">
                                 {t.baseCurrency}
                               </span>

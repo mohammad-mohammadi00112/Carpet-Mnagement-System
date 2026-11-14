@@ -12,6 +12,7 @@ import {
     updatePayment,
     deletePayment
 } from "../services/finance/paymentSerivce";
+import { getSales } from "../services/sales/saleService";
 
 const translations = {
     en: {
@@ -40,7 +41,12 @@ const translations = {
         invalidAmount: "Amount and exchange rate must be greater than zero",
         loadError: "Could not load payments",
         all: "All", clearFilters: "Clear Filters",
-        noDescription: "No payments yet"
+        noDescription: "No payments yet",
+        selectSale: "Select a sale",
+        selectEmployee: "Select an employee",
+        loadingSales: "Loading sales...",
+        noSales: "No sales available",
+        salesLoadError: "Could not load sales"
     },
     fa: {
         title: "پرداخت‌ها", subtitle: "مدیریت پرداخت‌های مشتریان",
@@ -69,7 +75,12 @@ const translations = {
         invalidAmount: "مبلغ و نرخ تبدیل باید بزرگ‌تر از صفر باشند",
         loadError: "دریافت پرداخت‌ها ناموفق بود",
         all: "همه", clearFilters: "پاک کردن فیلترها",
-        noDescription: "هنوز پرداختی ثبت نشده"
+        noDescription: "هنوز پرداختی ثبت نشده",
+        selectSale: "یک فروش را انتخاب کنید",
+        selectEmployee: "یک کارمند را انتخاب کنید",
+        loadingSales: "در حال دریافت فروش‌ها...",
+        noSales: "فروشی موجود نیست",
+        salesLoadError: "دریافت فروش‌ها ناموفق بود"
     },
     ps: {
         title: "تادیات", subtitle: "د پیرودونکو د تادیاتو مدیریت",
@@ -100,12 +111,20 @@ const translations = {
         invalidAmount: "اندازه او د تبادلې نرخ باید له صفر څخه زیات وي",
         loadError: "د تادیاتو ترلاسه کول ناکام شول",
         all: "ټول", clearFilters: "فلټرونه پاک کړئ",
-        noDescription: "تر اوسه تادیه نشته"
+        noDescription: "تر اوسه تادیه نشته",
+        selectSale: "یو پلور وټاکئ",
+        selectEmployee: "یو کارمند وټاکئ",
+        loadingSales: "پلورونه ترلاسه کېږي...",
+        noSales: "پلور شتون نه لري",
+        salesLoadError: "د پلورونو ترلاسه کول ناکام شول"
     }
 };
 
 const methods = ["cash", "card", "bank_transfer", "check"];
 const types = ["deposit", "installment", "full_payment", "refund"];
+
+// Replace these sample IDs with your real employee IDs.
+const employeeIds = [1, 2, 3, 4, 5];
 
 const emptyForm = {
     sale_id: "",
@@ -116,6 +135,14 @@ const emptyForm = {
     amount: "",
     currency_id: "1",
     exchange_rate_to_sale: "1"
+};
+
+const getArray = data => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.rows)) return data.rows;
+    if (Array.isArray(data?.sales)) return data.sales;
+    return [];
 };
 
 export default function Payments() {
@@ -129,6 +156,8 @@ export default function Payments() {
     const isRTL = ["fa", "ps"].includes(language);
 
     const [payments, setPayments] = useState([]);
+    const [sales, setSales] = useState([]);
+    const [salesLoading, setSalesLoading] = useState(false);
     const [form, setForm] = useState(emptyForm);
     const [editingId, setEditingId] = useState(null);
     const [modal, setModal] = useState(false);
@@ -143,7 +172,7 @@ export default function Payments() {
     const [toast, setToast] = useState("");
     const pageSize = 6;
 
-    const notify = (message) => {
+    const notify = message => {
         setToast(message);
         window.setTimeout(() => setToast(""), 3000);
     };
@@ -152,7 +181,7 @@ export default function Payments() {
         try {
             setLoading(true);
             const data = await getPayments();
-            setPayments(Array.isArray(data) ? data : []);
+            setPayments(getArray(data));
         } catch (error) {
             console.error("Get payments error:", error);
             notify(error.response?.data?.message || t.loadError);
@@ -161,9 +190,40 @@ export default function Payments() {
         }
     };
 
+    const fetchSales = async () => {
+        try {
+            setSalesLoading(true);
+            const data = await getSales();
+            setSales(getArray(data));
+        } catch (error) {
+            console.error("Get sales error:", error);
+            notify(error.response?.data?.message || t.salesLoadError);
+        } finally {
+            setSalesLoading(false);
+        }
+    };
+
     useEffect(() => {
         fetchPayments();
+        fetchSales();
     }, []);
+
+    const saleOptions = useMemo(() => {
+        return sales
+            .map(sale => ({
+                id: Number(sale.id ?? sale.sale_id),
+                label: `#${sale.id ?? sale.sale_id}`
+            }))
+            .filter(sale => Number.isInteger(sale.id) && sale.id > 0);
+    }, [sales]);
+
+    const employeeOptions = useMemo(() => {
+        const existingIds = payments
+            .map(payment => Number(payment.received_by))
+            .filter(id => Number.isInteger(id) && id > 0);
+
+        return [...new Set([...employeeIds, ...existingIds])].sort((a, b) => a - b);
+    }, [payments]);
 
     const filteredPayments = useMemo(() => {
         return payments.filter(payment => {
@@ -605,20 +665,63 @@ export default function Payments() {
                         </div>
 
                         <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+
+                            {/* Sale Dropdown */}
                             <div>
                                 <label className={labelClass}>{t.sale} *</label>
-                                <input required min="1" type="number"
+                                <select
+                                    required
                                     value={form.sale_id}
                                     onChange={e => updateField("sale_id", e.target.value)}
-                                    className={inputClass} placeholder="Sale ID" />
+                                    className={inputClass}
+                                    disabled={salesLoading}
+                                >
+                                    <option value="">
+                                        {salesLoading ? t.loadingSales : t.selectSale}
+                                    </option>
+
+                                    {saleOptions.map(sale => (
+                                        <option key={sale.id} value={sale.id}>
+                                            {sale.label}
+                                        </option>
+                                    ))}
+
+                                    {form.sale_id &&
+                                        !saleOptions.some(sale => String(sale.id) === String(form.sale_id)) && (
+                                            <option value={form.sale_id}>
+                                                #{form.sale_id}
+                                            </option>
+                                        )}
+                                </select>
+                                {!salesLoading && saleOptions.length === 0 && (
+                                    <p className="mt-1 text-xs text-amber-600">{t.noSales}</p>
+                                )}
                             </div>
 
+                            {/* Employee Dropdown */}
                             <div>
                                 <label className={labelClass}>{t.employee} *</label>
-                                <input required min="1" type="number"
+                                <select
+                                    required
                                     value={form.received_by}
                                     onChange={e => updateField("received_by", e.target.value)}
-                                    className={inputClass} placeholder="Employee ID" />
+                                    className={inputClass}
+                                >
+                                    <option value="">{t.selectEmployee}</option>
+
+                                    {employeeOptions.map(id => (
+                                        <option key={id} value={id}>
+                                            #{id}
+                                        </option>
+                                    ))}
+
+                                    {form.received_by &&
+                                        !employeeOptions.includes(Number(form.received_by)) && (
+                                            <option value={form.received_by}>
+                                                #{form.received_by}
+                                            </option>
+                                        )}
+                                </select>
                             </div>
 
                             <div>
@@ -691,7 +794,7 @@ export default function Payments() {
                                     className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
                                     {t.cancel}
                                 </button>
-                                <button type="submit" disabled={saving}
+                                <button type="submit" disabled={saving || salesLoading}
                                     className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
                                     {saving ? "..." : editingId ? t.update : t.save}
                                 </button>

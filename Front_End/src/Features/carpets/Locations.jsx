@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Search, MapPin, Plus, Pencil, Trash2 } from "lucide-react";
 import {
@@ -380,12 +381,32 @@ const Locations = () => {
               <select
                 value={form.type}
                 onChange={(e) => setForm({ ...form, type: e.target.value })}
-                className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent"
+                className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white text-slate-900 dark:bg-slate-800 dark:text-white"
               >
-                <option value="showroom">{t.showroom}</option>
-                <option value="warehouse">{t.warehouse}</option>
-                <option value="shelf">{t.shelf}</option>
-                <option value="other">{t.other}</option>
+                <option
+                  value="showroom"
+                  className="bg-white text-slate-900 dark:bg-slate-800 dark:text-white"
+                >
+                  {t.showroom}
+                </option>
+                <option
+                  value="warehouse"
+                  className="bg-white text-slate-900 dark:bg-slate-800 dark:text-white"
+                >
+                  {t.warehouse}
+                </option>
+                <option
+                  value="shelf"
+                  className="bg-white text-slate-900 dark:bg-slate-800 dark:text-white"
+                >
+                  {t.shelf}
+                </option>
+                <option
+                  value="other"
+                  className="bg-white text-slate-900 dark:bg-slate-800 dark:text-white"
+                >
+                  {t.other}
+                </option>
               </select>
             </div>
 

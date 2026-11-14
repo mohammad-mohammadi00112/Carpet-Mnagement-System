@@ -8,14 +8,14 @@ router.use(express.json())
 const authorizePermission = require('../meddilewares/authorize.middleware')
 const authenticateToken = require('../meddilewares/auth.middleware')
 
-router.get('/carpets',authenticateToken,authorizePermission('carpets.read'),(_, res) => {
+router.get('/carpets',authenticateToken,authorizePermission('carpets.manage'),(_, res) => {
     carpetDB
         .query('SELECT * FROM carpets;')
         .then((result) => res.json(result.rows))
         .catch((error) => res.json(error))
 })
 
-router.get('/carpets/:id', authenticateToken,authorizePermission('carpets.read'),(req, res) => {
+router.get('/carpets/:id', authenticateToken,authorizePermission('carpets.manage'),(req, res) => {
     const { id } = req.params
     carpetDB
         .query(`SELECT * FROM carpets WHERE id = $1;`, [id])

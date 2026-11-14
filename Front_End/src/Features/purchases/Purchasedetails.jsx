@@ -1,8 +1,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Search, Plus, Pencil, Trash2, Eye, X,
-  ShoppingBag, Package, DollarSign
+  Search,
+  Plus,
+  Pencil,
+  Trash2,
+  Eye,
+  X,
+  ShoppingBag,
+  Package,
+  DollarSign
 } from "lucide-react";
 
 import {
@@ -11,6 +18,10 @@ import {
   updatePurchaseDetail,
   deletePurchaseDetail
 } from "../services/purchases/purchaseDetailService";
+
+import { getPurchases } from "../services/purchases/purchaseService";
+import { getCarpets } from "../services/carpets/carpetService";
+import { getLocations } from "../services/locations/locationService";
 
 const translations = {
   en: {
@@ -22,9 +33,9 @@ const translations = {
     search: "Search by purchase, carpet or location...",
     add: "Add Detail",
     id: "ID",
-    purchase: "Purchase ID",
-    carpet: "Carpet ID",
-    location: "Location ID",
+    purchase: "Purchase",
+    carpet: "Carpet",
+    location: "Location",
     quantity: "Quantity",
     price: "Purchase Price",
     amount: "Line Total",
@@ -44,8 +55,20 @@ const translations = {
     loading: "Loading purchase details...",
     saving: "Saving...",
     loadError: "Failed to load purchase details.",
-    error: "Something went wrong."
+    error: "Something went wrong.",
+    selectPurchase: "Select a purchase",
+    selectCarpet: "Select a carpet",
+    selectLocation: "Select a location",
+    noPurchases: "No purchases available",
+    noCarpets: "No carpets available",
+    noLocations: "No locations available",
+    referencesError: "Some dropdown data could not be loaded.",
+    unknown: "Unknown",
+    purchaseNumber: "Purchase",
+    carpetCode: "Carpet code",
+    locationName: "Location"
   },
+
   fa: {
     title: "جزئیات خرید",
     subtitle: "مدیریت اقلام خریداری‌شده فرش",
@@ -55,9 +78,9 @@ const translations = {
     search: "جستجو بر اساس خرید، فرش یا موقعیت...",
     add: "افزودن جزئیات",
     id: "شناسه",
-    purchase: "شناسه خرید",
-    carpet: "شناسه فرش",
-    location: "شناسه موقعیت",
+    purchase: "خرید",
+    carpet: "فرش",
+    location: "موقعیت",
     quantity: "تعداد",
     price: "قیمت خرید",
     amount: "مجموع قیمت",
@@ -77,8 +100,20 @@ const translations = {
     loading: "در حال دریافت جزئیات خرید...",
     saving: "در حال ذخیره...",
     loadError: "دریافت جزئیات خرید ناموفق بود.",
-    error: "مشکلی به وجود آمده است."
+    error: "مشکلی به وجود آمده است.",
+    selectPurchase: "یک خرید را انتخاب کنید",
+    selectCarpet: "یک فرش را انتخاب کنید",
+    selectLocation: "یک موقعیت را انتخاب کنید",
+    noPurchases: "هیچ خریدی موجود نیست",
+    noCarpets: "هیچ فرشی موجود نیست",
+    noLocations: "هیچ موقعیتی موجود نیست",
+    referencesError: "بارگذاری بعضی از فهرست‌ها ناموفق بود.",
+    unknown: "نامشخص",
+    purchaseNumber: "خرید",
+    carpetCode: "کود فرش",
+    locationName: "موقعیت"
   },
+
   ps: {
     title: "د پېرود تفصیلات",
     subtitle: "د پېرودل شوو غالیو توکي اداره کړئ",
@@ -88,9 +123,9 @@ const translations = {
     search: "د پېرود، غالۍ یا ځای له مخې لټون...",
     add: "تفصیلات زیات کړئ",
     id: "شمېره",
-    purchase: "د پېرود شمېره",
-    carpet: "د غالۍ شمېره",
-    location: "د ځای شمېره",
+    purchase: "پېرود",
+    carpet: "غالۍ",
+    location: "ځای",
     quantity: "اندازه",
     price: "د پېرود بیه",
     amount: "ټوله بیه",
@@ -110,7 +145,18 @@ const translations = {
     loading: "د پېرود تفصیلات ترلاسه کېږي...",
     saving: "ساتل کېږي...",
     loadError: "د پېرود تفصیلات ترلاسه نه شول.",
-    error: "یوه ستونزه رامنځته شوه."
+    error: "یوه ستونزه رامنځته شوه.",
+    selectPurchase: "یو پېرود وټاکئ",
+    selectCarpet: "یوه غالۍ وټاکئ",
+    selectLocation: "یو ځای وټاکئ",
+    noPurchases: "هیڅ پېرود شتون نه لري",
+    noCarpets: "هیڅ غالۍ شتون نه لري",
+    noLocations: "هیڅ ځای شتون نه لري",
+    referencesError: "د ځینو لېستونو ترلاسه کول بریالي نه شول.",
+    unknown: "نامعلوم",
+    purchaseNumber: "پېرود",
+    carpetCode: "د غالۍ کوډ",
+    locationName: "ځای"
   }
 };
 
@@ -122,12 +168,23 @@ const emptyForm = {
   purchase_price: ""
 };
 
+const getArray = result => {
+  if (Array.isArray(result)) return result;
+  if (Array.isArray(result?.data)) return result.data;
+  if (Array.isArray(result?.rows)) return result.rows;
+  return [];
+};
+
 export default function PurchaseDetail() {
   const language = localStorage.getItem("language") || "en";
   const t = translations[language] || translations.en;
   const rtl = language === "fa" || language === "ps";
 
   const [data, setData] = useState([]);
+  const [purchases, setPurchases] = useState([]);
+  const [carpets, setCarpets] = useState([]);
+  const [locations, setLocations] = useState([]);
+
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState(false);
   const [viewItem, setViewItem] = useState(null);
@@ -135,44 +192,145 @@ export default function PurchaseDetail() {
   const [form, setForm] = useState(emptyForm);
 
   const [loading, setLoading] = useState(true);
+  const [referencesLoading, setReferencesLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [referenceError, setReferenceError] = useState("");
 
-  // Load purchase details from backend
+  const getErrorMessage = err =>
+    err.response?.data?.message || err.message || t.error;
+
+  const getReferenceLabel = (item, type) => {
+    if (!item) return t.unknown;
+
+    if (type === "purchase") {
+      return (
+        item.purchase_number ||
+        item.purchase_no ||
+        item.invoice_number ||
+        item.reference_number ||
+        item.invoice_no ||
+        `#${item.id}`
+      );
+    }
+
+    if (type === "carpet") {
+      const code =
+        item.carpet_code ||
+        item.code ||
+        item.product_code;
+
+      const name =
+        item.name ||
+        item.carpet_name ||
+        item.description;
+
+      if (code && name) return `${code} - ${name}`;
+      return code || name || `#${item.id}`;
+    }
+
+    if (type === "location") {
+      return (
+        item.name ||
+        item.location_name ||
+        item.location ||
+        `#${item.id}`
+      );
+    }
+
+    return `#${item.id}`;
+  };
+
+  const findReference = (list, id) =>
+    list.find(item => Number(item.id) === Number(id));
+
+  const purchaseLabel = id =>
+    getReferenceLabel(findReference(purchases, id), "purchase");
+
+  const carpetLabel = id =>
+    getReferenceLabel(findReference(carpets, id), "carpet");
+
+  const locationLabel = id =>
+    getReferenceLabel(findReference(locations, id), "location");
+
+  // Load purchase details
   const loadPurchaseDetails = async () => {
     try {
       setLoading(true);
       setError("");
 
       const result = await getPurchaseDetails();
-      setData(Array.isArray(result) ? result : []);
+      setData(getArray(result));
     } catch (err) {
-      setError(
-        err.response?.data?.message || t.loadError
-      );
+      setError(getErrorMessage(err) || t.loadError);
     } finally {
       setLoading(false);
     }
   };
 
+  // Load dropdown data
+  const loadReferences = async () => {
+    setReferencesLoading(true);
+    setReferenceError("");
+
+    const results = await Promise.allSettled([
+      getPurchases(),
+      getCarpets(),
+      getLocations()
+    ]);
+
+    let failed = false;
+
+    if (results[0].status === "fulfilled") {
+      setPurchases(getArray(results[0].value));
+    } else {
+      failed = true;
+      setPurchases([]);
+    }
+
+    if (results[1].status === "fulfilled") {
+      setCarpets(getArray(results[1].value));
+    } else {
+      failed = true;
+      setCarpets([]);
+    }
+
+    if (results[2].status === "fulfilled") {
+      setLocations(getArray(results[2].value));
+    } else {
+      failed = true;
+      setLocations([]);
+    }
+
+    if (failed) setReferenceError(t.referencesError);
+
+    setReferencesLoading(false);
+  };
+
   useEffect(() => {
     loadPurchaseDetails();
+    loadReferences();
   }, []);
 
   const filteredData = useMemo(() => {
     const term = search.toLowerCase().trim();
 
-    return data.filter(item =>
-      [
+    return data.filter(item => {
+      const values = [
         item.id,
         item.purchase_id,
         item.carpet_id,
-        item.location_id
-      ].some(value =>
-        String(value).toLowerCase().includes(term)
-      )
-    );
-  }, [data, search]);
+        item.location_id,
+        purchaseLabel(item.purchase_id),
+        carpetLabel(item.carpet_id),
+        locationLabel(item.location_id)
+      ];
+
+      return values.some(value =>
+        String(value ?? "").toLowerCase().includes(term)
+      );
+    });
+  }, [data, search, purchases, carpets, locations]);
 
   const totalQuantity = data.reduce(
     (sum, item) => sum + Number(item.quantity || 0),
@@ -186,9 +344,6 @@ export default function PurchaseDetail() {
   );
 
   const money = value => Number(value || 0).toLocaleString();
-
-  const getErrorMessage = err =>
-    err.response?.data?.message || err.message || t.error;
 
   const openAdd = () => {
     setEditingId(null);
@@ -300,6 +455,33 @@ export default function PurchaseDetail() {
     }
   ];
 
+  const selectFields = [
+    {
+      key: "purchase_id",
+      label: t.purchase,
+      placeholder: t.selectPurchase,
+      empty: t.noPurchases,
+      options: purchases,
+      type: "purchase"
+    },
+    {
+      key: "carpet_id",
+      label: t.carpet,
+      placeholder: t.selectCarpet,
+      empty: t.noCarpets,
+      options: carpets,
+      type: "carpet"
+    },
+    {
+      key: "location_id",
+      label: t.location,
+      placeholder: t.selectLocation,
+      empty: t.noLocations,
+      options: locations,
+      type: "location"
+    }
+  ];
+
   return (
     <div
       dir={rtl ? "rtl" : "ltr"}
@@ -325,10 +507,15 @@ export default function PurchaseDetail() {
         </button>
       </div>
 
-      {/* Error Message */}
       {error && !modal && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300">
           {error}
+        </div>
+      )}
+
+      {referenceError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300">
+          {referenceError}
         </div>
       )}
 
@@ -382,7 +569,6 @@ export default function PurchaseDetail() {
           </div>
         </div>
 
-        {/* Loading */}
         {loading ? (
           <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
             {t.loading}
@@ -424,13 +610,13 @@ export default function PurchaseDetail() {
                         #{item.id}
                       </td>
                       <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                        #{item.purchase_id}
+                        {purchaseLabel(item.purchase_id)}
                       </td>
                       <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                        #{item.carpet_id}
+                        {carpetLabel(item.carpet_id)}
                       </td>
                       <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                        #{item.location_id}
+                        {locationLabel(item.location_id)}
                       </td>
                       <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
                         {item.quantity}
@@ -492,32 +678,32 @@ export default function PurchaseDetail() {
                   key={item.id}
                   className="rounded-xl border border-gray-200 p-4 dark:border-gray-700"
                 >
-                  <div className="mb-3 flex items-center justify-between">
+                  <div className="mb-3 flex items-center justify-between gap-2">
                     <span className="font-semibold text-gray-900 dark:text-white">
                       #{item.id}
                     </span>
 
                     <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                      {t.purchase} #{item.purchase_id}
+                      {purchaseLabel(item.purchase_id)}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-gray-500 dark:text-gray-400">
                         {t.carpet}
                       </p>
-                      <p className="mt-1 font-medium text-gray-800 dark:text-gray-200">
-                        #{item.carpet_id}
+                      <p className="mt-1 break-words font-medium text-gray-800 dark:text-gray-200">
+                        {carpetLabel(item.carpet_id)}
                       </p>
                     </div>
 
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-gray-500 dark:text-gray-400">
                         {t.location}
                       </p>
-                      <p className="mt-1 font-medium text-gray-800 dark:text-gray-200">
-                        #{item.location_id}
+                      <p className="mt-1 break-words font-medium text-gray-800 dark:text-gray-200">
+                        {locationLabel(item.location_id)}
                       </p>
                     </div>
 
@@ -613,12 +799,65 @@ export default function PurchaseDetail() {
                 </div>
               )}
 
+              {selectFields.map(field => (
+                <div key={field.key}>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {field.label}
+                  </label>
+
+                  <select
+                    required
+                    value={form[field.key]}
+                    onChange={e =>
+                      setForm({
+                        ...form,
+                        [field.key]: e.target.value
+                      })
+                    }
+                    disabled={referencesLoading}
+                    className={inputClass}
+                  >
+                    <option value="">
+                      {referencesLoading ? t.loading : field.placeholder}
+                    </option>
+
+                    {field.options.map(option => (
+                      <option key={option.id} value={option.id}>
+                        {getReferenceLabel(option, field.type)}
+                      </option>
+                    ))}
+
+                    {form[field.key] &&
+                      !field.options.some(
+                        option => Number(option.id) === Number(form[field.key])
+                      ) && (
+                        <option value={form[field.key]}>
+                          #{form[field.key]}
+                        </option>
+                      )}
+                  </select>
+
+                  {!referencesLoading && field.options.length === 0 && (
+                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                      {field.empty}
+                    </p>
+                  )}
+                </div>
+              ))}
+
               {[
-                { key: "purchase_id", label: t.purchase, min: 1 },
-                { key: "carpet_id", label: t.carpet, min: 1 },
-                { key: "location_id", label: t.location, min: 1 },
-                { key: "quantity", label: t.quantity, min: 1 },
-                { key: "purchase_price", label: t.price, min: 0 }
+                {
+                  key: "quantity",
+                  label: t.quantity,
+                  min: 1,
+                  step: "1"
+                },
+                {
+                  key: "purchase_price",
+                  label: t.price,
+                  min: 0,
+                  step: "0.01"
+                }
               ].map(field => (
                 <div key={field.key}>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -628,7 +867,7 @@ export default function PurchaseDetail() {
                   <input
                     type="number"
                     min={field.min}
-                    step={field.key === "purchase_price" ? "0.01" : "1"}
+                    step={field.step}
                     required
                     value={form[field.key]}
                     onChange={e =>
@@ -657,7 +896,7 @@ export default function PurchaseDetail() {
 
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || referencesLoading}
                   className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving ? t.saving : t.save}
@@ -688,9 +927,9 @@ export default function PurchaseDetail() {
             <div className="space-y-4 p-5">
               {[
                 [t.id, viewItem.id],
-                [t.purchase, viewItem.purchase_id],
-                [t.carpet, viewItem.carpet_id],
-                [t.location, viewItem.location_id],
+                [t.purchase, purchaseLabel(viewItem.purchase_id)],
+                [t.carpet, carpetLabel(viewItem.carpet_id)],
+                [t.location, locationLabel(viewItem.location_id)],
                 [t.quantity, viewItem.quantity],
                 [t.price, money(viewItem.purchase_price)],
                 [
@@ -706,7 +945,7 @@ export default function PurchaseDetail() {
                     {label}
                   </span>
 
-                  <span className="font-semibold text-gray-900 dark:text-white">
+                  <span className="text-end font-semibold text-gray-900 dark:text-white">
                     {value}
                   </span>
                 </div>

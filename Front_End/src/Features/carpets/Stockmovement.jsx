@@ -19,6 +19,8 @@ import {
   createStockAdjustment
 } from "../services/stockMovment/StockMovement";
 
+import { getLocations } from "../services/locations/locationService";
+
 const translations = {
   en: {
     title: "Stock Movements",
@@ -159,12 +161,16 @@ const StockMovements = ({ language: languageProp }) => {
   const isRTL = language === "fa" || language === "ps";
 
   const [movements, setMovements] = useState([]);
+  const [locations, setLocations] = useState([]);
+
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
+
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -175,6 +181,7 @@ const StockMovements = ({ language: languageProp }) => {
     note: ""
   });
 
+  // Load Stock Movements
   const loadMovements = useCallback(async () => {
     try {
       setLoading(true);
@@ -183,31 +190,29 @@ const StockMovements = ({ language: languageProp }) => {
       const data = await getStockMovements();
       setMovements(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error(err);
+      console.error("Load Stock Movements Error:", err);
       setError(err.response?.data?.message || t.error);
     } finally {
       setLoading(false);
     }
   }, [t.error]);
 
+  // Load All Locations Independently
+  const loadLocations = useCallback(async () => {
+    try {
+      const data = await getLocations();
+      setLocations(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Load Locations Error:", err);
+    }
+  }, []);
+
   useEffect(() => {
     loadMovements();
-  }, [loadMovements]);
+    loadLocations();
+  }, [loadMovements, loadLocations]);
 
-  const locations = useMemo(() => {
-    return [
-      ...new Map(
-        movements.map((item) => [
-          item.location_id,
-          {
-            id: item.location_id,
-            name: item.location
-          }
-        ])
-      ).values()
-    ];
-  }, [movements]);
-
+  // Filter Movements
   const filteredMovements = useMemo(() => {
     return movements.filter((item) => {
       const searchText = search.toLowerCase();
@@ -215,10 +220,13 @@ const StockMovements = ({ language: languageProp }) => {
       const matchesSearch =
         (item.carpet || "").toLowerCase().includes(searchText) ||
         (item.code || "").toLowerCase().includes(searchText) ||
+        (item.carpet_name || "").toLowerCase().includes(searchText) ||
+        (item.carpet_code || "").toLowerCase().includes(searchText) ||
         (item.note || "").toLowerCase().includes(searchText);
 
       const matchesType =
-        typeFilter === "all" || item.movement_type === typeFilter;
+        typeFilter === "all" ||
+        item.movement_type === typeFilter;
 
       const matchesLocation =
         locationFilter === "all" ||
@@ -228,19 +236,24 @@ const StockMovements = ({ language: languageProp }) => {
     });
   }, [movements, search, typeFilter, locationFilter]);
 
+  // Statistics
   const stats = useMemo(() => ({
     total: movements.length,
+
     purchases: movements.filter(
       (item) => item.movement_type === "purchase"
     ).length,
+
     sales: movements.filter(
       (item) => item.movement_type === "sale"
     ).length,
+
     adjustments: movements.filter(
       (item) => item.movement_type === "adjustment"
     ).length
   }), [movements]);
 
+  // Submit Adjustment
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -278,13 +291,14 @@ const StockMovements = ({ language: languageProp }) => {
 
       await loadMovements();
     } catch (err) {
-      console.error(err);
+      console.error("Create Stock Adjustment Error:", err);
       setError(err.response?.data?.message || t.error);
     } finally {
       setSaving(false);
     }
   };
 
+  // Movement Badge Style
   const getMovementStyle = (type) => {
     switch (type) {
       case "purchase":
@@ -301,6 +315,7 @@ const StockMovements = ({ language: languageProp }) => {
     }
   };
 
+  // Movement Icon
   const getMovementIcon = (type) => {
     switch (type) {
       case "purchase":
@@ -317,6 +332,7 @@ const StockMovements = ({ language: languageProp }) => {
     }
   };
 
+  // Format Date
   const formatDate = (date) => {
     if (!date) return "—";
 
@@ -330,8 +346,17 @@ const StockMovements = ({ language: languageProp }) => {
     return new Date(date).toLocaleString(locale);
   };
 
-  const inputClass =
-    "w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-800 outline-none transition focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400";
+  // Input and Select Styles
+  const inputClass = `
+    w-full rounded-lg border border-slate-200
+    bg-white px-3 py-2.5 text-slate-800
+    outline-none transition focus:border-blue-500
+    dark:border-slate-700 dark:bg-slate-800
+    dark:text-slate-100 dark:placeholder:text-slate-400
+  `;
+
+  const optionClass =
+    "bg-white text-slate-900 dark:bg-slate-800 dark:text-white";
 
   return (
     <div
@@ -344,6 +369,7 @@ const StockMovements = ({ language: languageProp }) => {
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
             {t.title}
           </h1>
+
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {t.subtitle}
           </p>
@@ -394,7 +420,11 @@ const StockMovements = ({ language: languageProp }) => {
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   {stat.label}
                 </p>
-                <Icon size={20} className="shrink-0 text-blue-600 dark:text-blue-400" />
+
+                <Icon
+                  size={20}
+                  className="shrink-0 text-blue-600 dark:text-blue-400"
+                />
               </div>
 
               <p className="mt-3 text-2xl font-bold text-slate-800 dark:text-white">
@@ -422,27 +452,43 @@ const StockMovements = ({ language: languageProp }) => {
           />
         </div>
 
+        {/* Movement Type Filter */}
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
           className={`${inputClass} lg:w-48`}
         >
-          <option value="all">{t.all}</option>
+          <option value="all" className={optionClass}>
+            {t.all}
+          </option>
+
           {movementTypes.map((type) => (
-            <option key={type} value={type}>
+            <option
+              key={type}
+              value={type}
+              className={optionClass}
+            >
               {t[type]}
             </option>
           ))}
         </select>
 
+        {/* Location Filter */}
         <select
           value={locationFilter}
           onChange={(e) => setLocationFilter(e.target.value)}
           className={`${inputClass} lg:w-48`}
         >
-          <option value="all">{t.allLocations}</option>
+          <option value="all" className={optionClass}>
+            {t.allLocations}
+          </option>
+
           {locations.map((location) => (
-            <option key={location.id} value={String(location.id)}>
+            <option
+              key={location.id}
+              value={String(location.id)}
+              className={optionClass}
+            >
               {location.name}
             </option>
           ))}
@@ -468,13 +514,19 @@ const StockMovements = ({ language: languageProp }) => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-500 dark:text-slate-400">
+                  <td
+                    colSpan={7}
+                    className="p-8 text-center text-slate-500 dark:text-slate-400"
+                  >
                     {t.loading}
                   </td>
                 </tr>
               ) : filteredMovements.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-500 dark:text-slate-400">
+                  <td
+                    colSpan={7}
+                    className="p-8 text-center text-slate-500 dark:text-slate-400"
+                  >
                     {t.noData}
                   </td>
                 </tr>
@@ -486,15 +538,18 @@ const StockMovements = ({ language: languageProp }) => {
                   >
                     <td className="px-5 py-4">
                       <div className="font-medium text-slate-800 dark:text-slate-100">
-                        {item.carpet}
+                        {item.carpet_name || "-"}
                       </div>
+
                       <div className="text-xs text-slate-500 dark:text-slate-400">
-                        {item.code}
+                        {item.carpet_code || "-"}
                       </div>
                     </td>
 
                     <td className="px-5 py-4">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${getMovementStyle(item.movement_type)}`}>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${getMovementStyle(item.movement_type)}`}
+                      >
                         {getMovementIcon(item.movement_type)}
                         {t[item.movement_type] || item.movement_type}
                       </span>
@@ -564,6 +619,7 @@ const StockMovements = ({ language: languageProp }) => {
 
             <form onSubmit={handleSubmit} className="space-y-4">
 
+              {/* Carpet ID */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.carpet}
@@ -582,6 +638,7 @@ const StockMovements = ({ language: languageProp }) => {
                 />
               </div>
 
+              {/* Location */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.location}
@@ -595,15 +652,23 @@ const StockMovements = ({ language: languageProp }) => {
                   className={inputClass}
                   required
                 >
-                  <option value="">{t.selectLocation}</option>
+                  <option value="" className={optionClass}>
+                    {t.selectLocation}
+                  </option>
+
                   {locations.map((location) => (
-                    <option key={location.id} value={location.id}>
+                    <option
+                      key={location.id}
+                      value={String(location.id)}
+                      className={optionClass}
+                    >
                       {location.name}
                     </option>
                   ))}
                 </select>
               </div>
 
+              {/* Quantity Change */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.quantity}
@@ -625,6 +690,7 @@ const StockMovements = ({ language: languageProp }) => {
                 </p>
               </div>
 
+              {/* Note */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.note}
@@ -646,6 +712,7 @@ const StockMovements = ({ language: languageProp }) => {
                 </p>
               )}
 
+              {/* Buttons */}
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"

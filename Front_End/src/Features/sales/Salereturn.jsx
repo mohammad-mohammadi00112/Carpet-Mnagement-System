@@ -1,8 +1,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Search, Plus, X, RotateCcw, Wallet,
-  CheckCircle2, Eye, RefreshCw
+  Search,
+  Plus,
+  X,
+  RotateCcw,
+  Wallet,
+  CheckCircle2,
+  Eye,
+  RefreshCw
 } from "lucide-react";
 
 import {
@@ -50,6 +56,7 @@ const translations = {
     noSales: "No sales available",
     saleCustomer: "Sale"
   },
+
   fa: {
     title: "برگشت فروشات",
     subtitle: "مدیریت برگشت اجناس و بازپرداخت پول مشتریان",
@@ -87,6 +94,7 @@ const translations = {
     noSales: "هیچ فروشی موجود نیست",
     saleCustomer: "فروش"
   },
+
   ps: {
     title: "د پلورنې بېرته راګرځول",
     subtitle: "د پېرودونکو د توکو بېرته راګرځول او پیسې ورکول اداره کړئ",
@@ -135,31 +143,43 @@ const SaleReturn = () => {
   const [sales, setSales] = useState([]);
   const [search, setSearch] = useState("");
   const [saleFilter, setSaleFilter] = useState("all");
+
   const [showModal, setShowModal] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState(null);
+
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // processed_by intentionally removed.
+  // Backend will get the logged-in user's ID from the JWT token.
   const [form, setForm] = useState({
     sale_id: "",
     return_date: new Date().toISOString().slice(0, 16),
     reason: "",
-    refund_amount: "",
-    processed_by: "1"
+    refund_amount: ""
   });
 
   const money = (value) =>
     new Intl.NumberFormat(
-      language === "en" ? "en-US" : language === "ps" ? "ps-AF" : "fa-IR"
+      language === "en"
+        ? "en-US"
+        : language === "ps"
+          ? "ps-AF"
+          : "fa-IR"
     ).format(Number(value || 0));
 
   const formatDate = (value) => {
     if (!value) return "—";
 
     return new Date(value).toLocaleDateString(
-      language === "en" ? "en-US" : language === "ps" ? "ps-AF" : "fa-IR"
+      language === "en"
+        ? "en-US"
+        : language === "ps"
+          ? "ps-AF"
+          : "fa-IR"
     );
   };
 
@@ -243,8 +263,7 @@ const SaleReturn = () => {
       sale_id: "",
       return_date: new Date().toISOString().slice(0, 16),
       reason: "",
-      refund_amount: "",
-      processed_by: "1"
+      refund_amount: ""
     });
 
     setError("");
@@ -256,27 +275,26 @@ const SaleReturn = () => {
     setNotice("");
 
     const refund = Number(form.refund_amount);
-    const processedBy = Number(form.processed_by);
 
     if (
       !form.sale_id ||
       !form.return_date ||
       !form.reason.trim() ||
+      form.refund_amount === "" ||
       !Number.isFinite(refund) ||
-      refund < 0 ||
-      !Number.isInteger(processedBy) ||
-      processedBy <= 0
+      refund < 0
     ) {
       setError(t.required);
       return;
     }
 
+    // Do not send processed_by from frontend.
+    // The backend must identify the authenticated user.
     const returnData = {
       sale_id: Number(form.sale_id),
       return_date: form.return_date,
       reason: form.reason.trim(),
-      refund_amount: refund,
-      processed_by: processedBy
+      refund_amount: refund
     };
 
     setSaving(true);
@@ -311,6 +329,7 @@ const SaleReturn = () => {
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
             {t.title}
           </h1>
+
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {t.subtitle}
           </p>
@@ -373,6 +392,7 @@ const SaleReturn = () => {
                   <p className="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
                     {stat.label}
                   </p>
+
                   <p className="mt-2 text-xl font-bold text-slate-800 dark:text-white sm:text-2xl">
                     {stat.value}
                   </p>
@@ -417,7 +437,10 @@ const SaleReturn = () => {
 
             {sales.map((sale) => (
               <option key={sale.id} value={sale.id}>
-                #{sale.id} - {sale.customer_name || sale.customer || `${t.saleCustomer} #${sale.id}`}
+                #{sale.id} -{" "}
+                {sale.customer_name ||
+                  sale.customer ||
+                  `${t.saleCustomer} #${sale.id}`}
               </option>
             ))}
           </select>
@@ -498,7 +521,7 @@ const SaleReturn = () => {
                       </td>
 
                       <td className="px-4 py-4 text-slate-600 dark:text-slate-300">
-                        #{item.processed_by}
+                        #{item.processed_by ?? "—"}
                       </td>
 
                       <td className="px-4 py-4">
@@ -582,6 +605,7 @@ const SaleReturn = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Sale */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.saleId}
@@ -599,7 +623,10 @@ const SaleReturn = () => {
 
                   {sales.map((sale) => (
                     <option key={sale.id} value={sale.id}>
-                      #{sale.id} - {sale.customer_name || sale.customer || `${t.saleCustomer} #${sale.id}`}
+                      #{sale.id} -{" "}
+                      {sale.customer_name ||
+                        sale.customer ||
+                        `${t.saleCustomer} #${sale.id}`}
                     </option>
                   ))}
                 </select>
@@ -611,6 +638,7 @@ const SaleReturn = () => {
                 )}
               </div>
 
+              {/* Return Date */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.returnDate}
@@ -627,6 +655,7 @@ const SaleReturn = () => {
                 />
               </div>
 
+              {/* Refund Amount */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.refundAmount}
@@ -645,23 +674,9 @@ const SaleReturn = () => {
                 />
               </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  {t.processedBy}
-                </label>
+              {/* Processed By is automatically assigned by backend */}
 
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={form.processed_by}
-                  onChange={(e) =>
-                    setForm({ ...form, processed_by: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
-
+              {/* Reason */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.reason}
@@ -728,8 +743,16 @@ const SaleReturn = () => {
                 [t.returnId, `#${selectedReturn.id}`],
                 [t.saleId, `#${selectedReturn.sale_id}`],
                 [t.date, formatDate(selectedReturn.return_date)],
-                [t.refund, `${money(selectedReturn.refund_amount)} ${t.currency}`],
-                [t.processedBy, `#${selectedReturn.processed_by}`]
+                [
+                  t.refund,
+                  `${money(selectedReturn.refund_amount)} ${t.currency}`
+                ],
+                [
+                  t.processedBy,
+                  selectedReturn.processed_by
+                    ? `#${selectedReturn.processed_by}`
+                    : "—"
+                ]
               ].map(([label, value]) => (
                 <div
                   key={label}
