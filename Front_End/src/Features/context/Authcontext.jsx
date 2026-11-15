@@ -1,7 +1,8 @@
-import { createContext, useContext, useState } from "react";
+
+import { createContext, useContext, useState } from "react"
 import api from "../services/api";
 
-const AuthContext = createContext(null);
+const AuthContext = createContext(null)
 
 const getStoredAuth = () => {
   try {
@@ -13,7 +14,7 @@ const getStoredAuth = () => {
   } catch {
     localStorage.removeItem("carpetpro_auth")
     sessionStorage.removeItem("carpetpro_auth")
-    return null
+    return null;
   }
 }
 
@@ -21,8 +22,8 @@ export const AuthProvider = ({ children }) => {
   const [auth, setAuth] = useState(getStoredAuth);
 
   const login = async (credentials, rememberMe = false) => {
-    const response = await api.post("/login", credentials);
-    const data = response.data;
+    const response = await api.post("/login", credentials)
+    const data = response.data
 
     if (!data.token || !data.user) {
       throw new Error(data.message || "Login failed!");
@@ -33,16 +34,17 @@ export const AuthProvider = ({ children }) => {
       user: data.user,
     }
 
-    localStorage.removeItem("carpetpro_auth");
-    sessionStorage.removeItem("carpetpro_auth");
+    localStorage.removeItem("carpetpro_auth")
+    sessionStorage.removeItem("carpetpro_auth")
 
-    const storage = rememberMe ? localStorage : sessionStorage;
-    storage.setItem("carpetpro_auth", JSON.stringify(authData));
+    const storage = rememberMe ? localStorage : sessionStorage
 
-    setAuth(authData);
+    storage.setItem("carpetpro_auth", JSON.stringify(authData))
 
-    return data;
-  };
+    setAuth(authData)
+
+    return data
+  }
 
   const logout = () => {
     localStorage.removeItem("carpetpro_auth")

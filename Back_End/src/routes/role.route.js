@@ -8,29 +8,47 @@ const authenticateToken = require('../meddilewares/auth.middleware')
 const authorizePermission = require('../meddilewares/authorize.middleware')
 
 
-router.get('/roles', authenticateToken, authorizePermission('admin.manage'),(_, res) => {
+router.get('/roles', authenticateToken, authorizePermission('admin.manage'), (_, res) => {
     carpetDB
         .query(`SELECT * FROM roles;`)
         .then((result) => res.json(result.rows))
-        .catch((error) => res.json(error))
+        .catch((error) => {
+            console.error("Roles Error:", error);
+
+            res.status(500).json({
+                message: "An error occurred while processing roles."
+            })
+        })
 })
-router.get('/roles/:id', authenticateToken, authorizePermission('admin.manage'),(req, res) => {
+router.get('/roles/:id', authenticateToken, authorizePermission('admin.manage'), (req, res) => {
     const { id } = req.params
     carpetDB
         .query(`SELECT * FROM roles WHERE id = $1;`, [id])
         .then((result) => res.json(result.rows))
-        .catch((error) => res.json(error))
+        .catch((error) => {
+            console.error("Roles Error:", error);
+
+            res.status(500).json({
+                message: "An error occurred while processing roles."
+            })
+        })
 })
 
-router.delete('/roles/:id', authenticateToken, authorizePermission('admin.manage'),(req, res) => {
+router.delete('/roles/:id', authenticateToken, authorizePermission('admin.manage'), (req, res) => {
     const { id } = req.params
     carpetDB
         .query(`DELETE FROM roles WHERE id = $1;`, [id])
         .then(() => res.json({ message: 'One Role Has Been Deleted!' }))
-        .catch((error) => res.json(error))
+        .catch((error) => {
+            console.error("Roles Error:", error);
+
+            res.status(500).json({
+                message: "An error occurred while processing roles."
+            })
+        })
 })
 
-router.post('/roles', authenticateToken, authorizePermission('admin.manage'),(req, res) => {
+router.post('/roles', authenticateToken, authorizePermission('admin.manage'), (req, res) => {
     const { name, description, is_system } = req.body
 
     carpetDB
@@ -38,10 +56,16 @@ router.post('/roles', authenticateToken, authorizePermission('admin.manage'),(re
         VALUES ($1, $2, $3)
         `, [name, description, is_system])
         .then(() => res.json({ message: 'New Role Has Been Added!' }))
-        .catch((error) => res.json(error))
+        .catch((error) => {
+            console.error("Roles Error:", error);
+
+            res.status(500).json({
+                message: "An error occurred while processing roles."
+            })
+        })
 })
 
-router.put('/roles/:id', authenticateToken, authorizePermission('admin.manage'),(req, res) => {
+router.put('/roles/:id', authenticateToken, authorizePermission('admin.manage'), (req, res) => {
     const { id } = req.params
     const { name, description, is_system } = req.body
     carpetDB
@@ -53,11 +77,17 @@ router.put('/roles/:id', authenticateToken, authorizePermission('admin.manage'),
                 WHERE id = $4;
                 `, [name, description, is_system, id])
         .then(() => res.json({ message: 'Role Has Been Updated!' }))
-        .catch((error) => res.json(error))
+        .catch((error) => {
+            console.error("Roles Error:", error);
+
+            res.status(500).json({
+                message: "An error occurred while processing roles."
+            })
+        })
 
 })
 
-router.patch('/roles/:id', authenticateToken, authorizePermission('admin.manage'),(req, res) => {
+router.patch('/roles/:id', authenticateToken, authorizePermission('admin.manage'), (req, res) => {
     const { id } = req.params
     const entries = Object.entries(req.body)
     const changes = entries.map((entry, index) =>
@@ -71,7 +101,13 @@ router.patch('/roles/:id', authenticateToken, authorizePermission('admin.manage'
                 WHERE id = $${value.length + 1}
             `, [...value, id])
         .then(() => res.json({ message: 'Role Has Been Updated!' }))
-        .catch((error) => res.json(error))
+        .catch((error) => {
+            console.error("Roles Error:", error);
+
+            res.status(500).json({
+                message: "An error occurred while processing roles."
+            })
+        })
 })
 
 module.exports = router

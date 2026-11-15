@@ -1,25 +1,25 @@
 
-import DarkLight from "./DarkLight";
-import Languages from "./Languages";
-import { useAuth } from "../../context/Authcontext";
-import { FiBell, FiUser } from "react-icons/fi";
-import { useTranslation } from "react-i18next";
+import DarkLight from "./DarkLight"
+import Languages from "./Languages"
+import { useAuth } from "../../context/Authcontext"
+import { FiBell, FiUser } from "react-icons/fi"
+import { useTranslation } from "react-i18next"
 
 const MainHeader = () => {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation()
 
-  const isRTL = i18n.language !== "en";
-  const { user } = useAuth();
-  // Temporary user information
-  <div className="hidden sm:block">
-    <h2 className="text-sm font-semibold text-gray-800 dark:text-white">
-      {user?.username || "User"}
-    </h2>
+  const isRTL = i18n.language !== "en"
+  const { user } = useAuth()
 
-    <p className="text-xs text-gray-500 dark:text-gray-400">
-      {user?.role_name || "User"}
-    </p>
-  </div>
+  const userName =
+    user?.username ||
+    user?.name ||
+    "User";
+
+  const userRole =
+    user?.role_name ||
+    user?.role ||
+    "Role";
 
   return (
     <header
@@ -38,11 +38,11 @@ const MainHeader = () => {
 
         <div className="hidden sm:block">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-white">
-            {user?.name || "User"}
+            {userName}
           </h2>
 
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            {user?.role || "Role"}
+            {userRole}
           </p>
         </div>
       </div>
@@ -68,7 +68,7 @@ const MainHeader = () => {
         <DarkLight />
       </div>
     </header>
-  );
-};
+  )
+}
 
-export default MainHeader;
+export default MainHeader

@@ -15,19 +15,31 @@ import {
 
 const translations = {
   en: {
-    title: "Roles", subtitle: "Manage system roles and access levels",
-    add: "Add Role", search: "Search roles...",
-    total: "Total Roles", system: "System Roles",
-    custom: "Custom Roles", assigned: "Assigned Users",
-    name: "Role Name", description: "Description",
-    type: "Role Type", created: "Created At",
-    actions: "Actions", systemRole: "System",
-    customRole: "Custom", save: "Save Role",
-    update: "Update Role", cancel: "Cancel",
-    edit: "Edit", view: "View", delete: "Delete",
+    title: "Roles",
+    subtitle: "Manage system roles and access levels",
+    add: "Add Role",
+    search: "Search roles...",
+    total: "Total Roles",
+    system: "System Roles",
+    custom: "Custom Roles",
+    assigned: "Assigned Users",
+    name: "Role Name",
+    description: "Description",
+    type: "Role Type",
+    created: "Created At",
+    actions: "Actions",
+    systemRole: "System",
+    customRole: "Custom",
+    save: "Save Role",
+    update: "Update Role",
+    cancel: "Cancel",
+    edit: "Edit",
+    view: "View",
+    delete: "Delete",
     noData: "No roles found",
     confirm: "Are you sure you want to delete this role?",
-    details: "Role Details", close: "Close",
+    details: "Role Details",
+    close: "Close",
     required: "Role name is required",
     systemOnly: "System roles cannot be deleted.",
     systemEdit: "System roles cannot be modified.",
@@ -40,22 +52,39 @@ const translations = {
     saving: "Saving...",
     retry: "Retry",
     success: "Operation completed successfully",
+    accessDenied: "You do not have permission to access this page.",
+    invalidResponse: "The server returned an invalid response.",
+    loadError: "Unable to load roles. Please try again.",
+    assignedError: "Unable to verify assigned users. Please try again.",
+    serverError: "The server could not complete your request."
   },
 
   fa: {
-    title: "نقش‌ها", subtitle: "مدیریت نقش‌ها و سطح دسترسی سیستم",
-    add: "افزودن نقش", search: "جستجوی نقش‌ها...",
-    total: "مجموع نقش‌ها", system: "نقش‌های سیستمی",
-    custom: "نقش‌های سفارشی", assigned: "کاربران اختصاص‌یافته",
-    name: "نام نقش", description: "توضیحات",
-    type: "نوع نقش", created: "تاریخ ایجاد",
-    actions: "عملیات", systemRole: "سیستمی",
-    customRole: "سفارشی", save: "ثبت نقش",
-    update: "ویرایش نقش", cancel: "لغو",
-    edit: "ویرایش", view: "مشاهده", delete: "حذف",
+    title: "نقش‌ها",
+    subtitle: "مدیریت نقش‌ها و سطح دسترسی سیستم",
+    add: "افزودن نقش",
+    search: "جستجوی نقش‌ها...",
+    total: "مجموع نقش‌ها",
+    system: "نقش‌های سیستمی",
+    custom: "نقش‌های سفارشی",
+    assigned: "کاربران اختصاص‌یافته",
+    name: "نام نقش",
+    description: "توضیحات",
+    type: "نوع نقش",
+    created: "تاریخ ایجاد",
+    actions: "عملیات",
+    systemRole: "سیستمی",
+    customRole: "سفارشی",
+    save: "ثبت نقش",
+    update: "ویرایش نقش",
+    cancel: "لغو",
+    edit: "ویرایش",
+    view: "مشاهده",
+    delete: "حذف",
     noData: "نقشی پیدا نشد",
     confirm: "آیا از حذف این نقش مطمئن هستید؟",
-    details: "جزئیات نقش", close: "بستن",
+    details: "جزئیات نقش",
+    close: "بستن",
     required: "نام نقش الزامی است",
     systemOnly: "نقش‌های سیستمی قابل حذف نیستند.",
     systemEdit: "نقش‌های سیستمی قابل ویرایش نیستند.",
@@ -68,22 +97,39 @@ const translations = {
     saving: "در حال ذخیره...",
     retry: "تلاش مجدد",
     success: "عملیات با موفقیت انجام شد",
+    accessDenied: "شما اجازه دسترسی به این صفحه را ندارید.",
+    invalidResponse: "پاسخ سرور معتبر نیست.",
+    loadError: "دریافت نقش‌ها ناموفق بود. لطفاً دوباره تلاش کنید.",
+    assignedError: "بررسی کاربران اختصاص‌یافته ممکن نیست.",
+    serverError: "سرور نتوانست درخواست شما را انجام دهد."
   },
 
   ps: {
-    title: "رولونه", subtitle: "د سیسټم رولونه او د لاسرسي کچې اداره کړئ",
-    add: "نوی رول", search: "رولونه ولټوئ...",
-    total: "ټول رولونه", system: "سیسټمي رولونه",
-    custom: "ځانګړي رولونه", assigned: "ټاکل شوي کاروونکي",
-    name: "د رول نوم", description: "توضیحات",
-    type: "د رول ډول", created: "د جوړېدو نېټه",
-    actions: "کړنې", systemRole: "سیسټمي",
-    customRole: "ځانګړی", save: "ثبتول",
-    update: "سمون", cancel: "لغوه",
-    edit: "سمون", view: "کتل", delete: "ړنګول",
+    title: "رولونه",
+    subtitle: "د سیسټم رولونه او د لاسرسي کچې اداره کړئ",
+    add: "نوی رول",
+    search: "رولونه ولټوئ...",
+    total: "ټول رولونه",
+    system: "سیسټمي رولونه",
+    custom: "ځانګړي رولونه",
+    assigned: "ټاکل شوي کاروونکي",
+    name: "د رول نوم",
+    description: "توضیحات",
+    type: "د رول ډول",
+    created: "د جوړېدو نېټه",
+    actions: "کړنې",
+    systemRole: "سیسټمي",
+    customRole: "ځانګړی",
+    save: "ثبتول",
+    update: "سمون",
+    cancel: "لغوه",
+    edit: "سمون",
+    view: "کتل",
+    delete: "ړنګول",
     noData: "رول ونه موندل شو",
     confirm: "ایا د دې رول له ړنګولو ډاډه یاست؟",
-    details: "د رول معلومات", close: "بندول",
+    details: "د رول معلومات",
+    close: "بندول",
     required: "د رول نوم اړین دی",
     systemOnly: "سیسټمي رولونه نه شي ړنګېدای.",
     systemEdit: "سیسټمي رولونه نه شي بدلېدای.",
@@ -96,13 +142,27 @@ const translations = {
     saving: "ثبت کېږي...",
     retry: "بیا هڅه",
     success: "عملیات په بریالیتوب ترسره شول",
-  },
+    accessDenied: "تاسو دې پاڼې ته د لاسرسي اجازه نه لرئ.",
+    invalidResponse: "د سرور ځواب سم نه دی.",
+    loadError: "د رولونو ترلاسه کول ناکام شول.",
+    assignedError: "د ټاکل شویو کاروونکو ارزونه ممکنه نه ده.",
+    serverError: "سرور ستاسو غوښتنه بشپړه نه کړه."
+  }
 };
 
 const emptyForm = {
   name: "",
   description: "",
-  is_system: false,
+  is_system: false
+};
+
+const getErrorMessage = (err, fallback) => {
+  return (
+    err?.response?.data?.message ||
+    err?.response?.data?.error ||
+    err?.message ||
+    fallback
+  );
 };
 
 export default function Roles() {
@@ -116,6 +176,7 @@ export default function Roles() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState("");
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -125,26 +186,57 @@ export default function Roles() {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
 
+  // Load roles and users safely
   const loadData = async () => {
     setLoading(true);
     setPageError("");
+    setAccessDenied(false);
 
     try {
       const [rolesData, usersData] = await Promise.all([
         getRoles(),
-        getUsers(),
+        getUsers()
       ]);
+
+      // Prevent runtime errors when the backend returns an error object
+      if (!Array.isArray(rolesData)) {
+        throw new Error(
+          rolesData?.message ||
+          rolesData?.error ||
+          t.invalidResponse
+        );
+      }
+
+      if (!Array.isArray(usersData)) {
+        throw new Error(
+          usersData?.message ||
+          usersData?.error ||
+          t.invalidResponse
+        );
+      }
 
       setRoles(rolesData);
       setUsers(usersData);
 
     } catch (err) {
-      setPageError(
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        t.error
-      );
+      console.error("Roles page loading error:", err);
+
+      setRoles([]);
+      setUsers([]);
+
+      if (err.response?.status === 403) {
+        setAccessDenied(true);
+        setPageError(t.accessDenied);
+      } else if (err.response?.status === 401) {
+        setPageError(
+          getErrorMessage(err, t.error)
+        );
+      } else {
+        setPageError(
+          getErrorMessage(err, t.loadError)
+        );
+      }
+
     } finally {
       setLoading(false);
     }
@@ -154,9 +246,14 @@ export default function Roles() {
     loadData();
   }, []);
 
+  // Search and filter
   const filtered = useMemo(() => {
+    if (!Array.isArray(roles)) return [];
+
     return roles.filter(role => {
-      const text = `${role.name} ${role.description || ""}`.toLowerCase();
+      const text = `${role?.name || ""} ${
+        role?.description || ""
+      }`.toLowerCase();
 
       return (
         text.includes(search.toLowerCase()) &&
@@ -169,27 +266,28 @@ export default function Roles() {
     });
   }, [roles, search, filter]);
 
+  // Statistics
   const stats = [
     {
       label: t.total,
       value: roles.length,
-      icon: Shield,
+      icon: Shield
     },
     {
       label: t.system,
       value: roles.filter(r => r.is_system).length,
-      icon: ShieldCheck,
+      icon: ShieldCheck
     },
     {
       label: t.custom,
       value: roles.filter(r => !r.is_system).length,
-      icon: ShieldPlus,
+      icon: ShieldPlus
     },
     {
       label: t.assigned,
       value: users.length,
-      icon: Users,
-    },
+      icon: Users
+    }
   ];
 
   const getAssignedUsers = roleId => {
@@ -198,13 +296,17 @@ export default function Roles() {
     ).length;
   };
 
+  // Open add modal
   const openAdd = () => {
+    if (accessDenied || loading || pageError) return;
+
     setForm(emptyForm);
     setSelected(null);
     setError("");
     setModal("form");
   };
 
+  // Open edit modal
   const openEdit = role => {
     if (role.is_system) {
       window.alert(t.systemEdit);
@@ -216,13 +318,14 @@ export default function Roles() {
     setForm({
       name: role.name || "",
       description: role.description || "",
-      is_system: false,
+      is_system: false
     });
 
     setError("");
     setModal("form");
   };
 
+  // Save role
   const saveRole = async e => {
     e.preventDefault();
     setError("");
@@ -233,7 +336,8 @@ export default function Roles() {
     }
 
     const duplicate = roles.some(role =>
-      role.name.toLowerCase() === form.name.trim().toLowerCase() &&
+      String(role.name || "").toLowerCase() ===
+        form.name.trim().toLowerCase() &&
       Number(role.id) !== Number(selected?.id)
     );
 
@@ -245,7 +349,7 @@ export default function Roles() {
     const data = {
       name: form.name.trim(),
       description: form.description.trim(),
-      is_system: false,
+      is_system: false
     };
 
     setSaving(true);
@@ -264,17 +368,18 @@ export default function Roles() {
       await loadData();
 
     } catch (err) {
+      console.error("Save role error:", err);
+
       setError(
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        t.error
+        getErrorMessage(err, t.serverError)
       );
+
     } finally {
       setSaving(false);
     }
   };
 
+  // Delete role
   const handleDelete = async role => {
     if (role.is_system) {
       window.alert(t.systemOnly);
@@ -294,15 +399,15 @@ export default function Roles() {
 
     try {
       setPageError("");
+
       await deleteRole(role.id);
       await loadData();
 
     } catch (err) {
+      console.error("Delete role error:", err);
+
       setPageError(
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        t.error
+        getErrorMessage(err, t.serverError)
       );
     }
   };
@@ -318,240 +423,265 @@ export default function Roles() {
       dir={rtl ? "rtl" : "ltr"}
       className="space-y-6 p-3 text-gray-800 dark:text-gray-100 sm:p-5 lg:p-6"
     >
-
       {/* Header */}
-
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold">{t.title}</h1>
+
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {t.subtitle}
           </p>
         </div>
 
-        <button
-          onClick={openAdd}
-          disabled={loading}
-          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          <Plus size={18} />
-          {t.add}
-        </button>
+        {!accessDenied && (
+          <button
+            onClick={openAdd}
+            disabled={loading || !!pageError}
+            className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus size={18} />
+            {t.add}
+          </button>
+        )}
       </div>
 
-      {/* Error */}
+      {/* Access denied */}
+      {accessDenied ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900 dark:bg-red-950/40">
+          <Lock
+            size={42}
+            className="mx-auto mb-3 text-red-500"
+          />
 
-      {pageError && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-          <span>{pageError}</span>
+          <h2 className="text-lg font-bold text-red-700 dark:text-red-300">
+            {t.accessDenied}
+          </h2>
 
-          <button
-            onClick={loadData}
-            className="font-semibold underline"
-          >
-            {t.retry}
-          </button>
+          <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+            {pageError}
+          </p>
         </div>
-      )}
+      ) : (
+        <>
+          {/* Error */}
+          {pageError && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+              <span>{pageError}</span>
 
-      {/* Statistics */}
+              <button
+                onClick={loadData}
+                className="font-semibold underline"
+              >
+                {t.retry}
+              </button>
+            </div>
+          )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map(({ label, value, icon: Icon }) => (
-          <div
-            key={label}
-            className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {label}
-              </p>
+          {/* Statistics */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {stats.map(({ label, value, icon: Icon }) => (
+              <div
+                key={label}
+                className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {label}
+                  </p>
 
-              <span className="rounded-xl bg-blue-50 p-2 text-blue-600 dark:bg-blue-950">
-                <Icon size={20} />
-              </span>
+                  <span className="rounded-xl bg-blue-50 p-2 text-blue-600 dark:bg-blue-950">
+                    <Icon size={20} />
+                  </span>
+                </div>
+
+                <p className="mt-3 text-2xl font-bold">
+                  {value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Roles Table */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="relative w-full md:max-w-sm">
+                <Search
+                  size={18}
+                  className={`absolute top-3 text-gray-400 ${
+                    rtl ? "right-3" : "left-3"
+                  }`}
+                />
+
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder={t.search}
+                  className={`${fieldClass} ${
+                    rtl ? "pr-10" : "pl-10"
+                  }`}
+                />
+              </div>
+
+              <select
+                value={filter}
+                onChange={e => setFilter(e.target.value)}
+                className={`${fieldClass} md:w-52`}
+              >
+                <option value="all">{t.allTypes}</option>
+                <option value="system">{t.system}</option>
+                <option value="custom">{t.custom}</option>
+              </select>
             </div>
 
-            <p className="mt-3 text-2xl font-bold">{value}</p>
-          </div>
-        ))}
-      </div>
+            <div className="mt-4 overflow-x-auto">
+              {loading ? (
+                <p className="py-10 text-center text-gray-500">
+                  {t.loading}
+                </p>
+              ) : (
+                <table className="w-full min-w-[850px] text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                      {[
+                        t.name,
+                        t.description,
+                        t.type,
+                        t.assigned,
+                        t.created,
+                        t.actions
+                      ].map(item => (
+                        <th
+                          key={item}
+                          className="px-3 py-3 text-start font-semibold"
+                        >
+                          {item}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
 
-      {/* Roles Table */}
-
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="relative w-full md:max-w-sm">
-            <Search
-              size={18}
-              className={`absolute top-3 text-gray-400 ${rtl ? "right-3" : "left-3"}`}
-            />
-
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={t.search}
-              className={`${fieldClass} ${rtl ? "pr-10" : "pl-10"}`}
-            />
-          </div>
-
-          <select
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            className={`${fieldClass} md:w-52`}
-          >
-            <option value="all">{t.allTypes}</option>
-            <option value="system">{t.system}</option>
-            <option value="custom">{t.custom}</option>
-          </select>
-        </div>
-
-        <div className="mt-4 overflow-x-auto">
-          {loading ? (
-            <p className="py-10 text-center text-gray-500">
-              {t.loading}
-            </p>
-          ) : (
-            <table className="w-full min-w-[850px] text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                  {[
-                    t.name,
-                    t.description,
-                    t.type,
-                    t.assigned,
-                    t.created,
-                    t.actions,
-                  ].map(item => (
-                    <th
-                      key={item}
-                      className="px-3 py-3 text-start font-semibold"
-                    >
-                      {item}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-
-              <tbody>
-                {filtered.map(role => (
-                  <tr
-                    key={role.id}
-                    className="border-b border-gray-100 last:border-0 dark:border-gray-800"
-                  >
-
-                    <td className="px-3 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-xl bg-blue-50 p-2 text-blue-600 dark:bg-blue-950">
-                          <Shield size={18} />
-                        </span>
-
-                        <span className="font-medium">
-                          {role.name}
-                        </span>
-                      </div>
-                    </td>
-
-                    <td className="max-w-xs px-3 py-4 text-gray-500 dark:text-gray-400">
-                      <span className="line-clamp-2">
-                        {role.description || "—"}
-                      </span>
-                    </td>
-
-                    <td className="px-3 py-4">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          role.is_system
-                            ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
-                            : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                        }`}
+                  <tbody>
+                    {filtered.map(role => (
+                      <tr
+                        key={role.id}
+                        className="border-b border-gray-100 last:border-0 dark:border-gray-800"
                       >
-                        {role.is_system ? t.systemRole : t.customRole}
-                      </span>
-                    </td>
+                        <td className="px-3 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-xl bg-blue-50 p-2 text-blue-600 dark:bg-blue-950">
+                              <Shield size={18} />
+                            </span>
 
-                    <td className="px-3 py-4">
-                      {getAssignedUsers(role.id)}
-                    </td>
+                            <span className="font-medium">
+                              {role.name}
+                            </span>
+                          </div>
+                        </td>
 
-                    <td className="px-3 py-4">
-                      {role.created_at
-                        ? new Date(role.created_at).toLocaleDateString()
-                        : "—"}
-                    </td>
+                        <td className="max-w-xs px-3 py-4 text-gray-500 dark:text-gray-400">
+                          <span className="line-clamp-2">
+                            {role.description || "—"}
+                          </span>
+                        </td>
 
-                    <td className="px-3 py-4">
-                      <div className="flex items-center gap-2">
+                        <td className="px-3 py-4">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                              role.is_system
+                                ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
+                                : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                            }`}
+                          >
+                            {role.is_system
+                              ? t.systemRole
+                              : t.customRole}
+                          </span>
+                        </td>
 
-                        <button
-                          title={t.view}
-                          onClick={() => {
-                            setSelected(role);
-                            setModal("view");
-                          }}
-                          className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        <td className="px-3 py-4">
+                          {getAssignedUsers(role.id)}
+                        </td>
+
+                        <td className="px-3 py-4">
+                          {role.created_at
+                            ? new Date(
+                                role.created_at
+                              ).toLocaleDateString()
+                            : "—"}
+                        </td>
+
+                        <td className="px-3 py-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              title={t.view}
+                              onClick={() => {
+                                setSelected(role);
+                                setModal("view");
+                              }}
+                              className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                            >
+                              <Eye size={17} />
+                            </button>
+
+                            <button
+                              title={t.edit}
+                              onClick={() => openEdit(role)}
+                              disabled={role.is_system}
+                              className={`rounded-lg p-2 ${
+                                role.is_system
+                                  ? "cursor-not-allowed text-gray-300 dark:text-gray-600"
+                                  : "text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                              }`}
+                            >
+                              <Pencil size={17} />
+                            </button>
+
+                            <button
+                              title={t.delete}
+                              onClick={() => handleDelete(role)}
+                              disabled={role.is_system}
+                              className={`rounded-lg p-2 ${
+                                role.is_system
+                                  ? "cursor-not-allowed text-gray-300 dark:text-gray-600"
+                                  : "text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                              }`}
+                            >
+                              <Trash2 size={17} />
+                            </button>
+
+                            {role.is_system && (
+                              <Lock
+                                size={14}
+                                className="text-gray-400"
+                              />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+
+                    {filtered.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan="6"
+                          className="py-10 text-center text-gray-500"
                         >
-                          <Eye size={17} />
-                        </button>
-
-                        <button
-                          title={t.edit}
-                          onClick={() => openEdit(role)}
-                          disabled={role.is_system}
-                          className={`rounded-lg p-2 ${
-                            role.is_system
-                              ? "cursor-not-allowed text-gray-300 dark:text-gray-600"
-                              : "text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
-                          }`}
-                        >
-                          <Pencil size={17} />
-                        </button>
-
-                        <button
-                          title={t.delete}
-                          onClick={() => handleDelete(role)}
-                          disabled={role.is_system}
-                          className={`rounded-lg p-2 ${
-                            role.is_system
-                              ? "cursor-not-allowed text-gray-300 dark:text-gray-600"
-                              : "text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                          }`}
-                        >
-                          <Trash2 size={17} />
-                        </button>
-
-                        {role.is_system && (
-                          <Lock size={14} className="text-gray-400" />
-                        )}
-
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-
-                {filtered.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan="6"
-                      className="py-10 text-center text-gray-500"
-                    >
-                      {t.noData}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
+                          {t.noData}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Modal */}
-
-      {modal && (
+      {modal && !accessDenied && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-5">
           <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900 sm:p-6">
-
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-bold">
                 {modal === "view"
@@ -571,41 +701,47 @@ export default function Roles() {
 
             {modal === "view" && selected ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
                 {[
                   [t.name, selected.name],
                   [t.description, selected.description],
                   [
                     t.type,
-                    selected.is_system ? t.systemRole : t.customRole,
+                    selected.is_system
+                      ? t.systemRole
+                      : t.customRole
                   ],
                   [
                     t.assigned,
-                    getAssignedUsers(selected.id),
+                    getAssignedUsers(selected.id)
                   ],
                   [
                     t.created,
                     selected.created_at
-                      ? new Date(selected.created_at).toLocaleDateString()
-                      : "—",
-                  ],
+                      ? new Date(
+                          selected.created_at
+                        ).toLocaleDateString()
+                      : "—"
+                  ]
                 ].map(([label, value]) => (
                   <div
                     key={label}
                     className="rounded-xl bg-gray-50 p-3 dark:bg-gray-800"
                   >
-                    <p className="text-xs text-gray-500">{label}</p>
+                    <p className="text-xs text-gray-500">
+                      {label}
+                    </p>
 
                     <p className="mt-1 break-words text-sm font-medium">
                       {value || "—"}
                     </p>
                   </div>
                 ))}
-
               </div>
             ) : (
-              <form onSubmit={saveRole} className="space-y-4">
-
+              <form
+                onSubmit={saveRole}
+                className="space-y-4"
+              >
                 <div>
                   <label className={labelClass}>
                     {t.name} *
@@ -615,7 +751,10 @@ export default function Roles() {
                     required
                     value={form.name}
                     onChange={e =>
-                      setForm({ ...form, name: e.target.value })
+                      setForm({
+                        ...form,
+                        name: e.target.value
+                      })
                     }
                     placeholder={t.namePlaceholder}
                     className={fieldClass}
@@ -633,7 +772,7 @@ export default function Roles() {
                     onChange={e =>
                       setForm({
                         ...form,
-                        description: e.target.value,
+                        description: e.target.value
                       })
                     }
                     placeholder={t.descriptionPlaceholder}
@@ -643,7 +782,10 @@ export default function Roles() {
 
                 <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-800">
                   <div className="flex items-center gap-2 text-sm">
-                    <Lock size={16} className="text-gray-500" />
+                    <Lock
+                      size={16}
+                      className="text-gray-500"
+                    />
                     <span>{t.customRole}</span>
                   </div>
                 </div>
@@ -655,7 +797,6 @@ export default function Roles() {
                 )}
 
                 <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
-
                   <button
                     type="button"
                     onClick={() => setModal("")}
@@ -675,7 +816,6 @@ export default function Roles() {
                         ? t.update
                         : t.save}
                   </button>
-
                 </div>
               </form>
             )}
@@ -690,7 +830,6 @@ export default function Roles() {
                 </button>
               </div>
             )}
-
           </div>
         </div>
       )}
