@@ -1,65 +1,63 @@
 
-
 import api from "../api";
 
-const checkResponse = (data, fallbackMessage) => {
-  if (
-    data?.severity === "ERROR" ||
-    data?.error ||
-    data?.code
-  ) {
-    throw new Error(
-      data.message || data.detail || fallbackMessage
-    );
-  }
-
-  return data;
-};
-
+// Get shop settings
 export const getShopSettings = async () => {
-  const { data } = await api.get("/shop_settings");
-
-  checkResponse(data, "Failed to load shop settings");
-
-  if (!Array.isArray(data)) {
-    throw new Error("Invalid shop settings response");
-  }
-
-  return data;
+  const response = await api.get("/shop_settings");
+  return response.data;
 };
 
+// Get currencies
 export const getCurrencies = async () => {
-  const { data } = await api.get("/currencies");
+  const response = await api.get("/currencies");
+  return response.data;
+};
 
-  checkResponse(data, "Failed to load currencies");
+// Prepare settings data
+const prepareSettingsData = (payload) => {
+  const { logoFile, ...settingsData } = payload;
 
-  if (!Array.isArray(data)) {
-    throw new Error("Invalid currencies response");
+  // If no image is selected, send normal JSON data
+  if (!logoFile) {
+    return settingsData;
   }
 
-  return data;
+  // If an image is selected, send FormData
+  const formData = new FormData();
+
+  Object.entries(settingsData).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      formData.append(key, value);
+    }
+  });
+
+  formData.append("logo", logoFile);
+
+  return formData;
 };
 
-export const getShopSettingById = async (id) => {
-  const { data } = await api.get(`/shop_settings/${id}`);
+// Create shop settings
+export const createShopSettings = async (payload) => {
+  const data = prepareSettingsData(payload);
 
-  checkResponse(data, "Failed to load shop setting");
+  const response = await api.post("/shop_settings", data, {
+    headers: {
+      "Content-Type": undefined,
+    },
+  });
 
-  if (!Array.isArray(data)) {
-    throw new Error("Invalid shop setting response");
-  }
-
-  return data[0] || null;
+  return response.data;
 };
 
-export const createShopSettings = async (settings) => {
-  const { data } = await api.post("/shop_settings", settings);
+// Update shop settings
+export const updateShopSettings = async (id, payload) => {
+  const data = prepareSettingsData(payload);
 
-  return checkResponse(data, "Failed to create shop settings");
-};
+  const response = await api.put(`/shop_settings/${id}`, data, {
+    headers: {
+      "Content-Type": undefined,
+    },
+  });
 
-export const updateShopSettings = async (id, settings) => {
-  const { data } = await api.put(`/shop_settings/${id}`, settings);
-
-  return checkResponse(data, "Failed to update shop settings");
+  return response.data;
 };

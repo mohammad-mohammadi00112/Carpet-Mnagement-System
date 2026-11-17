@@ -11,6 +11,6 @@ export const getStockMovementById = async (id) => {
 };
 
 export const createStockAdjustment = async (data) => {
-  const response = await api.post("/stock_movements/adjustment", data);
+  const response = await api.post("/stock_movements", data);
   return response.data;
 };

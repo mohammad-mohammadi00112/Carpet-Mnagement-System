@@ -15,6 +15,10 @@ import {
   deleteExpense
 } from "../services/finance/expenseService";
 
+import {
+  getExpenseCategories
+} from "../services/finance/expenseCategoryService";
+
 const translations = {
   en: {
     title: "Expense Management",
@@ -65,6 +69,7 @@ const translations = {
     salary: "Salary",
     utilities: "Utilities",
     repair: "Repair",
+    wifi: "WiFi",
     expenseSaved: "Expense added successfully",
     expenseUpdated: "Expense updated successfully",
     expenseDeleted: "Expense deleted successfully",
@@ -130,6 +135,7 @@ const translations = {
     salary: "معاش",
     utilities: "برق و آب",
     repair: "ترمیمات",
+    wifi: "وای‌فای",
     expenseSaved: "مصرف موفقانه ثبت شد",
     expenseUpdated: "مصرف موفقانه ویرایش شد",
     expenseDeleted: "مصرف موفقانه حذف شد",
@@ -195,6 +201,7 @@ const translations = {
     salary: "معاش",
     utilities: "برېښنا او اوبه",
     repair: "ترمیم",
+    wifi: "وای فای",
     expenseSaved: "لګښت په بریالیتوب ثبت شو",
     expenseUpdated: "لګښت په بریالیتوب تازه شو",
     expenseDeleted: "لګښت په بریالیتوب ړنګ شو",
@@ -211,13 +218,39 @@ const translations = {
   },
 };
 
-const categories = [
-  { id: 1, name: "Rent" },
-  { id: 2, name: "Transport" },
-  { id: 3, name: "Salary" },
-  { id: 4, name: "Utilities" },
-  { id: 5, name: "Repair" },
-];
+// Translations for predefined expense categories
+const categoryTranslations = {
+  rent: {
+    en: "Rent",
+    fa: "کرایه",
+    ps: "کرایه",
+  },
+  transport: {
+    en: "Transport",
+    fa: "انتقالات",
+    ps: "ترانسپورت",
+  },
+  salary: {
+    en: "Salary",
+    fa: "معاش",
+    ps: "معاش",
+  },
+  utilities: {
+    en: "Utilities",
+    fa: "برق و آب",
+    ps: "برېښنا او اوبه",
+  },
+  repair: {
+    en: "Repair",
+    fa: "ترمیمات",
+    ps: "ترمیم",
+  },
+  wifi: {
+    en: "WiFi",
+    fa: "وای‌فای",
+    ps: "وای فای",
+  },
+};
 
 const currencies = [
   { id: 1, code: "AFN" },
@@ -250,6 +283,8 @@ export default function Expense() {
   const isRTL = ["fa", "ps"].includes(language);
 
   const [expenses, setExpenses] = useState([]);
+  const [categories, setCategories] = useState([]);
+
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -266,7 +301,6 @@ export default function Expense() {
 
   const pageSize = 6;
 
-  // Load expenses from Backend
   const loadExpenses = async () => {
     try {
       setLoading(true);
@@ -281,19 +315,35 @@ export default function Expense() {
     }
   };
 
+  const loadCategories = async () => {
+    try {
+      const data = await getExpenseCategories();
+      setCategories(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to load expense categories:", error);
+      setError(error.response?.data?.message || t.loadError);
+    }
+  };
+
   useEffect(() => {
     loadExpenses();
+    loadCategories();
   }, []);
 
+  // Translate known categories; show custom names as stored in database
   const getCategoryName = (id) => {
     const category = categories.find(
-      (item) => item.id === Number(id)
+      (item) => Number(item.id) === Number(id)
     );
 
     if (!category) return "-";
 
-    const key = category.name.toLowerCase();
-    return t[key] || category.name;
+    const key = String(category.name || "").trim().toLowerCase();
+
+    return (
+      categoryTranslations[key]?.[language] ||
+      category.name
+    );
   };
 
   const filteredExpenses = useMemo(() => {
@@ -314,11 +364,8 @@ export default function Expense() {
 
       const expenseDate = String(expense.expense_date).slice(0, 10);
 
-      const matchesFrom =
-        !fromDate || expenseDate >= fromDate;
-
-      const matchesTo =
-        !toDate || expenseDate <= toDate;
+      const matchesFrom = !fromDate || expenseDate >= fromDate;
+      const matchesTo = !toDate || expenseDate <= toDate;
 
       return (
         matchesSearch &&
@@ -330,6 +377,7 @@ export default function Expense() {
     });
   }, [
     expenses,
+    categories,
     search,
     categoryFilter,
     currencyFilter,
@@ -385,6 +433,7 @@ export default function Expense() {
     setEditingId(null);
     setError("");
     setShowModal(true);
+    loadCategories();
   };
 
   const openEditModal = (expense) => {
@@ -400,6 +449,7 @@ export default function Expense() {
     setEditingId(expense.id);
     setError("");
     setShowModal(true);
+    loadCategories();
   };
 
   const closeModal = () => {
@@ -422,7 +472,6 @@ export default function Expense() {
     }));
   };
 
-  // Save expense through Backend
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -482,7 +531,6 @@ export default function Expense() {
     }
   };
 
-  // Delete expense through Backend
   const handleDelete = async (id) => {
     if (!window.confirm(t.confirmDelete)) return;
 
@@ -718,7 +766,10 @@ export default function Expense() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-500/10 dark:text-red-400">
           <span>{error}</span>
           <button
-            onClick={loadExpenses}
+            onClick={() => {
+              loadExpenses();
+              loadCategories();
+            }}
             className="font-semibold underline"
           >
             {t.clear}

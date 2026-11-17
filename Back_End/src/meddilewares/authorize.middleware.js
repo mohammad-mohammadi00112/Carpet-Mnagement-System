@@ -13,13 +13,21 @@ const authorizePermission = (permissionCode) => {
                     ON role_permissions.permission_id = permissions.id
                 WHERE role_permissions.role_id = $1
                 AND permissions.code = $2;`
-            , [req.user.role_id, permissionCode])
+                , [req.user.role_id, permissionCode])
             .then((result) => {
                 if (result.rows.length === 0) {
                     return res.json({
                         message: 'Access Denied! You do not have permission.'
                     })
                 }
+
+                if (req.path.includes('shop_settings') && req.file) {
+                    delete req.body.logo
+                }
+                console.log('BODY:', req.body)
+                console.log('FILE:', req.file)
+                console.log('CONTENT TYPE:', req.headers['content-type'])
+
                 validateRequest(req, res, next)
             })
             .catch((error) => {

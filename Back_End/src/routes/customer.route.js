@@ -37,7 +37,16 @@ router.delete('/customers/:id', authenticateToken, authorizePermission('customer
     carpetDB
         .query(`DELETE FROM customers WHERE id = ${id};`)
         .then(() => res.json({ message: 'One Customer Has Been Deleted!' }))
-        .catch((error) => res.json(error))
+        .catch((error) => {
+            if(error.code === '23503') {
+                return res.status(409).json({
+                    message: `This Customer is Used In sale Record. Can't Be Deleted.`
+                })
+            }
+            return res.status(500).json({
+                message: 'Something Went Wrong While Deleting Customer.'
+            })
+        })
 })
 
 router.put('/customers/:id', authenticateToken, authorizePermission('customers.manage'),(req, res) => {

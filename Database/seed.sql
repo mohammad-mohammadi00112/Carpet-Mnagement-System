@@ -1,7 +1,6 @@
 -- Carpet Management System sample data
--- Run schema.sql first, then run this file.
 -- Five sample rows are inserted into each of the 28 tables.
--- Sample password hashes are placeholders; replace them with real hashes before use.
+
 
 BEGIN;
 

@@ -18,6 +18,7 @@
     "express": "^5.2.1",
     "inquirer": "^14.2.2",
     "jsonwebtoken": "^9.0.3",
+    "multer": "^2.5.0",
     "nodemon": "^3.1.14",
     "pg": "^8.23.1"
   }

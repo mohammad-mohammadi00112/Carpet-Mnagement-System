@@ -207,13 +207,13 @@ const Login = () => {
               {/* Options */}
               <div className="flex items-center justify-between my-6 text-xs gap-2 flex-wrap">
 
-                <label className="flex items-center gap-2 text-[#b0b7c4] cursor-pointer">
+                <label className="flex items-center gap-2 text-[#b0b7c4] cursor-pointer"> 
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="accent-[#30aaa0] w-[15px] h-[15px]"
-                  />
+                  />Remember Me
                 </label>
                 <span className="flex items-center gap-[6px] text-[#8994a4]"> <FiShield /> Secure Login </span>
               </div>

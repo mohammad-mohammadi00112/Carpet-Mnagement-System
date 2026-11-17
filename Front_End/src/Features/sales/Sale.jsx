@@ -91,7 +91,7 @@ const translations = {
     totalSales: "مجموع فروشات",
     totalRevenue: "مجموع عواید",
     paid: "پرداخت‌شده",
-    partial: "پرداخت قسمی",
+    partial: "پرداخت قسطی",
     unpaid: "پرداخت‌نشده",
     search: "جستجوی فروش، مشتری یا یادداشت...",
     allPayments: "تمام وضعیت‌های پرداخت",

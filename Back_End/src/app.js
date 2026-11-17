@@ -3,12 +3,16 @@ const express = require('express')
 const cors = require('cors')
 const app = express()
 app.use(express.json())
+const path = require('path')
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 app.use(cors({
   origin: 'http://localhost:8001',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }))
 
+const dashboardRoute = require('./routes/dashboard.route')
 const carpetRoute = require('./routes/carpet.route')
 const employeeRoute = require('./routes/employee.route')
 const customerRoute = require('./routes/customer.route')
@@ -37,7 +41,7 @@ const invoiceRoute = require('./routes/invoices.route')
 const saleReturnRoute = require('./routes/saleReturn.route')
 const saleReturnDetailRoute = require('./routes/saleReturnDetail.route')
 
-
+app.use(dashboardRoute)
 app.use(carpetRoute)
 app.use(userRoute)
 app.use(customerRoute)

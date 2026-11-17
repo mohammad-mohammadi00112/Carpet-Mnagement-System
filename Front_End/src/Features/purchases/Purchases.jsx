@@ -164,7 +164,7 @@ export default function Purchases() {
       console.log('id Array', Array.isArray(result))
 
       if (!Array.isArray(result)) {
-        throw new Error("Invalid purchases response from server.");
+        throw new Error("You Don't Have Permission Access To This Section");
       }
 
       setPurchases(result);

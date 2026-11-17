@@ -1,23 +1,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Store,
-  ReceiptText,
-  Wallet,
-  Image as ImageIcon,
-  Phone,
-  MapPin,
-  Hash,
-  Percent,
-  Coins,
-  Save,
-  RotateCcw,
-  CheckCircle2,
-  Info,
-  Building2,
-  FileText,
-  Loader2,
-  AlertCircle,
+  Store, ReceiptText, Wallet, Image as ImageIcon, ImageUp,
+  Phone, MapPin, Hash, Percent, Coins, Save, RotateCcw,
+  CheckCircle2, Info, Building2, FileText, Loader2,
+  AlertCircle, X,
 } from "lucide-react";
 
 import {
@@ -35,8 +22,6 @@ const translations = {
     shopInfoDesc: "Basic information about your carpet shop.",
     shopName: "Shop Name",
     shopNamePlaceholder: "Enter shop name",
-    logo: "Shop Logo URL",
-    logoPlaceholder: "Enter logo image URL",
     phone: "Phone Number",
     phonePlaceholder: "Enter phone number",
     address: "Shop Address",
@@ -70,11 +55,9 @@ const translations = {
     required: "Shop name is required.",
     invalidTax: "Tax rate must be between 0 and 100.",
     noLogo: "Your logo preview will appear here.",
-    uploadNote: "Enter an image URL to preview your shop logo.",
     general: "General",
     financial: "Finance",
     invoiceTab: "Invoices",
-    settings: "Settings",
     loading: "Loading settings...",
     saving: "Saving...",
     loadError: "Failed to load settings.",
@@ -83,8 +66,16 @@ const translations = {
     noCurrency: "No currencies available.",
     noSettings: "No shop settings found. Enter your shop information and save.",
     noRecord: "Not saved",
-    currencyCode: "Currency",
+    chooseImage: "Choose Image",
+    removeImage: "Remove selected image",
+    imageOnly: "Please select a valid image file.",
+    uploadHelp: "Select an image from your computer.",
+    uploadedPreview: "New image preview",
+    logoPreview: "Shop Logo",
+    unknownError: "An unexpected error occurred. Please try again.",
+    imageReadError: "Could not read the selected image. Please try another image.",
   },
+
   fa: {
     title: "تنظیمات فروشگاه",
     subtitle: "اطلاعات فروشگاه، فاکتورها و تنظیمات مالی را مدیریت کنید.",
@@ -92,8 +83,6 @@ const translations = {
     shopInfoDesc: "اطلاعات اساسی فروشگاه قالین شما.",
     shopName: "نام فروشگاه",
     shopNamePlaceholder: "نام فروشگاه را وارد کنید",
-    logo: "آدرس لوگوی فروشگاه",
-    logoPlaceholder: "آدرس تصویر لوگو را وارد کنید",
     phone: "شماره تماس",
     phonePlaceholder: "شماره تماس را وارد کنید",
     address: "آدرس فروشگاه",
@@ -125,13 +114,11 @@ const translations = {
     reset: "بازنشانی تغییرات",
     saved: "تغییرات با موفقیت ذخیره شد.",
     required: "نام فروشگاه الزامی است.",
-    invalidTax: "نرخ مالیات باید بین صفر تا صد باشد.",
+    invalidTax: "نرخ مالیات باید بین صفر و صد باشد.",
     noLogo: "پیش‌نمایش لوگوی شما در اینجا نمایش داده می‌شود.",
-    uploadNote: "برای پیش‌نمایش لوگو، آدرس تصویر را وارد کنید.",
     general: "عمومی",
     financial: "مالی",
     invoiceTab: "فاکتور",
-    settings: "تنظیمات",
     loading: "در حال دریافت تنظیمات...",
     saving: "در حال ذخیره...",
     loadError: "دریافت تنظیمات ناکام شد.",
@@ -140,8 +127,16 @@ const translations = {
     noCurrency: "هیچ ارزی موجود نیست.",
     noSettings: "تنظیمات فروشگاه پیدا نشد. اطلاعات فروشگاه را وارد و ذخیره کنید.",
     noRecord: "ذخیره نشده",
-    currencyCode: "واحد پول",
+    chooseImage: "انتخاب تصویر",
+    removeImage: "حذف تصویر انتخاب‌شده",
+    imageOnly: "لطفاً یک فایل تصویری معتبر انتخاب کنید.",
+    uploadHelp: "یک تصویر را از کامپیوتر خود انتخاب کنید.",
+    uploadedPreview: "پیش‌نمایش تصویر جدید",
+    logoPreview: "لوگوی فروشگاه",
+    unknownError: "یک خطای غیرمنتظره رخ داده است. دوباره تلاش کنید.",
+    imageReadError: "خواندن تصویر انتخاب‌شده ممکن نشد. لطفاً تصویر دیگری انتخاب کنید.",
   },
+
   ps: {
     title: "د هټۍ تنظیمات",
     subtitle: "د هټۍ معلومات، بلونه او مالي تنظیمات اداره کړئ.",
@@ -149,8 +144,6 @@ const translations = {
     shopInfoDesc: "ستاسو د قالینو پلورنځي بنسټیز معلومات.",
     shopName: "د هټۍ نوم",
     shopNamePlaceholder: "د هټۍ نوم ولیکئ",
-    logo: "د هټۍ د لوګو لینک",
-    logoPlaceholder: "د لوګو د انځور لینک ولیکئ",
     phone: "د اړیکې شمېره",
     phonePlaceholder: "د اړیکې شمېره ولیکئ",
     address: "د هټۍ پته",
@@ -184,11 +177,9 @@ const translations = {
     required: "د هټۍ نوم اړین دی.",
     invalidTax: "د مالیې کچه باید له صفر څخه تر سلو پورې وي.",
     noLogo: "ستاسو د لوګو مخکتنه به دلته ښکاره شي.",
-    uploadNote: "د لوګو د مخکتنې لپاره د انځور لینک ولیکئ.",
     general: "عمومي",
     financial: "مالي",
     invoiceTab: "بلونه",
-    settings: "تنظیمات",
     loading: "د تنظیماتو معلومات ترلاسه کېږي...",
     saving: "خوندي کېږي...",
     loadError: "د تنظیماتو ترلاسه کول ناکام شول.",
@@ -197,7 +188,14 @@ const translations = {
     noCurrency: "اسعار شتون نه لري.",
     noSettings: "د هټۍ تنظیمات ونه موندل شول. معلومات ولیکئ او خوندي یې کړئ.",
     noRecord: "خوندي شوي نه دي",
-    currencyCode: "پیسه",
+    chooseImage: "انځور وټاکئ",
+    removeImage: "ټاکل شوی انځور لرې کړئ",
+    imageOnly: "مهرباني وکړئ یو سم انځور وټاکئ.",
+    uploadHelp: "له خپل کمپیوټر څخه انځور وټاکئ.",
+    uploadedPreview: "د نوي انځور مخکتنه",
+    logoPreview: "د هټۍ لوګو",
+    unknownError: "یوه ناڅاپي تېروتنه رامنځته شوه. بیا هڅه وکړئ.",
+    imageReadError: "د ټاکل شوي انځور لوستل ممکن نه شول. مهرباني وکړئ بل انځور وټاکئ.",
   },
 };
 
@@ -226,12 +224,10 @@ function SectionHeading({ icon: Icon, title, description }) {
       <div className="rounded-xl bg-blue-50 p-2.5 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
         <Icon size={20} />
       </div>
-
       <div>
         <h2 className="font-semibold text-slate-800 dark:text-slate-100">
           {title}
         </h2>
-
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {description}
         </p>
@@ -241,7 +237,13 @@ function SectionHeading({ icon: Icon, title, description }) {
 }
 
 function getCurrencyName(currency) {
-  return currency?.name || currency?.currency_name || currency?.code || currency?.currency_code || "";
+  return (
+    currency?.name ||
+    currency?.currency_name ||
+    currency?.code ||
+    currency?.currency_code ||
+    ""
+  );
 }
 
 function getCurrencyCode(currency) {
@@ -249,7 +251,11 @@ function getCurrencyCode(currency) {
 }
 
 function getCurrencySymbol(currency) {
-  return currency?.symbol || currency?.currency_symbol || getCurrencyCode(currency);
+  return (
+    currency?.symbol ||
+    currency?.currency_symbol ||
+    getCurrencyCode(currency)
+  );
 }
 
 function mapSettings(data) {
@@ -264,6 +270,66 @@ function mapSettings(data) {
   };
 }
 
+function getLogoUrl(logo) {
+  if (!logo) return "";
+
+  try {
+    const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    const baseUrl = new URL(apiUrl, window.location.origin);
+
+    // Keep absolute URLs unchanged.
+    if (/^https?:\/\//i.test(logo)) {
+      return logo;
+    }
+
+    // Root-relative paths such as /uploads/logo.png.
+    if (logo.startsWith("/")) {
+      return new URL(logo, baseUrl.origin).href;
+    }
+
+    // Relative paths.
+    return new URL(logo, `${baseUrl.origin}/`).href;
+  } catch {
+    return logo;
+  }
+}
+
+function getErrorMessage(err, fallback) {
+  const data = err?.response?.data;
+
+  if (typeof data === "string" && data.trim()) {
+    return data;
+  }
+
+  if (data) {
+    if (typeof data.message === "string" && data.message.trim()) {
+      return data.message;
+    }
+
+    if (typeof data.error === "string" && data.error.trim()) {
+      return data.error;
+    }
+
+    if (Array.isArray(data.errors) && data.errors.length) {
+      return data.errors
+        .map((item) =>
+          typeof item === "string"
+            ? item
+            : item.message || item.msg || JSON.stringify(item)
+        )
+        .join(", ");
+    }
+
+    if (typeof data.detail === "string" && data.detail.trim()) {
+      return data.detail;
+    }
+  }
+
+  if (err?.message) return err.message;
+
+  return fallback;
+}
+
 export default function Settings() {
   const lang = document.documentElement.lang || "en";
   const t = translations[lang] || translations.en;
@@ -272,10 +338,12 @@ export default function Settings() {
   const [settings, setSettings] = useState(emptySettings);
   const [savedSettings, setSavedSettings] = useState(emptySettings);
   const [currencies, setCurrencies] = useState([]);
-
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState("");
+  const [logoError, setLogoError] = useState("");
+  const [logoLoadError, setLogoLoadError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [activeTab, setActiveTab] = useState("general");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -290,15 +358,24 @@ export default function Settings() {
         getCurrencies(),
       ]);
 
-      setCurrencies(currenciesData);
+      const settingsList = Array.isArray(settingsData)
+        ? settingsData
+        : settingsData
+          ? [settingsData]
+          : [];
 
-      if (settingsData.length > 0) {
-        const currentSettings = mapSettings(settingsData[0]);
+      const currencyList = Array.isArray(currenciesData)
+        ? currenciesData
+        : [];
 
+      setCurrencies(currencyList);
+
+      if (settingsList.length > 0) {
+        const currentSettings = mapSettings(settingsList[0]);
         setSettings(currentSettings);
         setSavedSettings(currentSettings);
       } else {
-        const firstCurrency = currenciesData[0];
+        const firstCurrency = currencyList[0];
 
         const newSettings = {
           ...emptySettings,
@@ -310,9 +387,14 @@ export default function Settings() {
         setSettings(newSettings);
         setSavedSettings(newSettings);
       }
+
+      setLogoFile(null);
+      setLogoPreview("");
+      setLogoError("");
+      setLogoLoadError(false);
     } catch (err) {
       console.error("Settings loading error:", err);
-      setError(err.message || t.loadError);
+      setError(getErrorMessage(err, t.loadError));
     } finally {
       setLoading(false);
     }
@@ -323,13 +405,55 @@ export default function Settings() {
   }, [loadSettings]);
 
   const updateField = (field, value) => {
-    setSettings((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-
+    setSettings((prev) => ({ ...prev, [field]: value }));
     setMessage("");
     setError("");
+  };
+
+  // Read the selected image and create a preview immediately.
+  const handleLogoChange = (e) => {
+    const file = e.target.files?.[0];
+
+    // Allow selecting the same file again later.
+    e.target.value = "";
+
+    if (!file) return;
+
+    setLogoError("");
+    setMessage("");
+    setError("");
+    setLogoLoadError(false);
+
+    if (!file.type.startsWith("image/")) {
+      setLogoError(t.imageOnly);
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setLogoFile(file);
+        setLogoPreview(reader.result);
+        setLogoLoadError(false);
+      } else {
+        setLogoError(t.imageReadError);
+      }
+    };
+
+    reader.onerror = () => {
+      setLogoError(t.imageReadError);
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveSelectedLogo = () => {
+    setLogoFile(null);
+    setLogoPreview("");
+    setLogoError("");
+    setLogoLoadError(false);
+    setMessage("");
   };
 
   const selectedCurrency = useMemo(
@@ -345,15 +469,11 @@ export default function Settings() {
     if (!date) return t.notUpdated;
 
     const parsedDate = new Date(date);
-
     if (Number.isNaN(parsedDate.getTime())) return t.notUpdated;
 
     return parsedDate.toLocaleString(
       lang === "fa" ? "fa-IR" : lang === "ps" ? "ps-AF" : "en-US",
-      {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }
+      { dateStyle: "medium", timeStyle: "short" }
     );
   };
 
@@ -386,11 +506,13 @@ export default function Settings() {
       invoice_footer: settings.invoice_footer || null,
       tax_rate: tax,
       base_currency_id: Number(settings.base_currency_id),
+      logoFile,
     };
 
     setSaving(true);
     setError("");
     setMessage("");
+    setLogoError("");
 
     try {
       if (settings.id) {
@@ -403,7 +525,8 @@ export default function Settings() {
       setMessage(t.saved);
     } catch (err) {
       console.error("Settings saving error:", err);
-      setError(err.message || t.saveError);
+      const errorMessage = getErrorMessage(err, t.saveError);
+      setError(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -411,6 +534,10 @@ export default function Settings() {
 
   const handleReset = () => {
     setSettings({ ...savedSettings });
+    setLogoFile(null);
+    setLogoPreview("");
+    setLogoError("");
+    setLogoLoadError(false);
     setMessage("");
     setError("");
   };
@@ -420,6 +547,8 @@ export default function Settings() {
     { id: "invoice", label: t.invoiceTab, icon: ReceiptText },
     { id: "financial", label: t.financial, icon: Wallet },
   ];
+
+  const displayedLogo = logoPreview || getLogoUrl(settings.logo);
 
   if (loading) {
     return (
@@ -441,7 +570,6 @@ export default function Settings() {
       >
         <AlertCircle size={40} className="text-red-500" />
         <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-
         <button
           type="button"
           onClick={loadSettings}
@@ -458,13 +586,11 @@ export default function Settings() {
       dir={isRtl ? "rtl" : "ltr"}
       className="min-h-screen space-y-6 bg-slate-50 p-4 text-slate-800 dark:bg-slate-950 dark:text-slate-100 sm:p-6"
     >
-      {/* Page Header */}
       <div>
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-blue-600 p-2.5 text-white">
             <Store size={22} />
           </div>
-
           <div>
             <h1 className="text-2xl font-bold">{t.title}</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -474,7 +600,6 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Navigation Tabs */}
       <div className="flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -485,11 +610,10 @@ export default function Settings() {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
-                active
+              className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition ${active
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-              }`}
+                }`}
             >
               <Icon size={17} />
               {tab.label}
@@ -505,7 +629,6 @@ export default function Settings() {
         </div>
       )}
 
-      {/* General Settings */}
       {activeTab === "general" && (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_300px]">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6">
@@ -531,9 +654,8 @@ export default function Settings() {
                 <div className="relative">
                   <Phone
                     size={17}
-                    className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${
-                      isRtl ? "right-3" : "left-3"
-                    }`}
+                    className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${isRtl ? "right-3" : "left-3"
+                      }`}
                   />
                   <input
                     value={settings.phone}
@@ -549,9 +671,8 @@ export default function Settings() {
                 <div className="relative">
                   <MapPin
                     size={17}
-                    className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${
-                      isRtl ? "right-3" : "left-3"
-                    }`}
+                    className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${isRtl ? "right-3" : "left-3"
+                      }`}
                   />
                   <input
                     value={settings.address}
@@ -563,59 +684,88 @@ export default function Settings() {
               </div>
 
               <div className="md:col-span-2">
-                <label className={labelClass}>{t.logo}</label>
-                <div className="relative">
-                  <ImageIcon
-                    size={17}
-                    className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${
-                      isRtl ? "right-3" : "left-3"
-                    }`}
-                  />
-                  <input
-                    value={settings.logo}
-                    onChange={(e) => updateField("logo", e.target.value)}
-                    placeholder={t.logoPlaceholder}
-                    className={`${inputClass} ${isRtl ? "pr-10" : "pl-10"}`}
-                  />
+                <label className={labelClass}>{t.logoPreview}</label>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <label className="inline-flex w-fit cursor-pointer items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 transition hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20">
+                    <ImageUp size={18} />
+                    {t.chooseImage}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoChange}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {logoFile && (
+                    <div className="flex min-w-0 items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                      <ImageIcon
+                        size={17}
+                        className="shrink-0 text-emerald-500"
+                      />
+                      <span className="truncate">{logoFile.name}</span>
+                      <button
+                        type="button"
+                        onClick={handleRemoveSelectedLogo}
+                        title={t.removeImage}
+                        aria-label={t.removeImage}
+                        className="rounded-lg p-1.5 text-red-500 transition hover:bg-red-50 dark:hover:bg-red-500/10"
+                      >
+                        <X size={17} />
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <p className="mt-2 text-xs text-slate-400">{t.uploadNote}</p>
+
+                <p className="mt-2 text-xs text-slate-400">
+                  {t.uploadHelp}
+                </p>
+
+                {logoError && (
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                    {logoError}
+                  </p>
+                )}
               </div>
             </div>
           </section>
 
-          {/* Logo Preview */}
           <aside className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <h3 className="font-semibold">{t.logo}</h3>
+            <h3 className="font-semibold">{t.logoPreview}</h3>
 
             <div className="mt-5 flex min-h-52 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/50">
-              {settings.logo ? (
+              {displayedLogo && !logoLoadError ? (
                 <img
-                  src={settings.logo}
+                  key={displayedLogo}
+                  src={displayedLogo}
                   alt="Shop logo preview"
                   className="max-h-32 max-w-full object-contain"
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                  }}
+                  onLoad={() => setLogoLoadError(false)}
+                  onError={() => setLogoLoadError(true)}
                 />
               ) : (
-                <div className="mb-3 rounded-2xl bg-blue-50 p-4 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                <div className="mb-3 flex flex-col items-center gap-2 rounded-2xl bg-blue-50 p-4 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
                   <Store size={36} />
+                  {logoLoadError && (
+                    <span className="text-center text-xs text-slate-500 dark:text-slate-400">
+                      {t.imageReadError}
+                    </span>
+                  )}
                 </div>
               )}
 
               <p className="mt-3 text-center text-sm font-semibold">
                 {settings.shop_name || t.shopName}
               </p>
-
               <p className="mt-1 text-center text-xs text-slate-400">
-                {t.noLogo}
+                {logoFile ? t.uploadedPreview : t.noLogo}
               </p>
             </div>
           </aside>
         </div>
       )}
 
-      {/* Invoice Settings */}
       {activeTab === "invoice" && (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6">
@@ -631,9 +781,8 @@ export default function Settings() {
                 <div className="relative">
                   <Hash
                     size={17}
-                    className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${
-                      isRtl ? "right-3" : "left-3"
-                    }`}
+                    className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${isRtl ? "right-3" : "left-3"
+                      }`}
                   />
                   <input
                     value={settings.invoice_prefix}
@@ -661,7 +810,6 @@ export default function Settings() {
             </div>
           </section>
 
-          {/* Invoice Preview */}
           <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6">
             <SectionHeading
               icon={FileText}
@@ -675,19 +823,18 @@ export default function Settings() {
                   <h3 className="break-words text-lg font-bold">
                     {settings.shop_name || t.shopName}
                   </h3>
-
                   <p className="mt-1 text-xs text-slate-500">
                     {settings.phone}
                   </p>
-
                   <p className="mt-1 text-xs text-slate-500">
                     {settings.address}
                   </p>
                 </div>
 
-                {settings.logo && (
+                {displayedLogo && (
                   <img
-                    src={settings.logo}
+                    key={displayedLogo}
+                    src={displayedLogo}
                     alt="Logo"
                     className="h-12 w-12 shrink-0 object-contain"
                   />
@@ -697,7 +844,7 @@ export default function Settings() {
               <div className="py-4">
                 <p className="text-xs text-slate-500">{t.invoiceNumber}</p>
                 <p className="mt-1 font-bold">
-                  {settings.invoice_prefix || "-"}- 
+                  {settings.invoice_prefix || "-"}-
                 </p>
               </div>
 
@@ -733,7 +880,6 @@ export default function Settings() {
         </div>
       )}
 
-      {/* Financial Settings */}
       {activeTab === "financial" && (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6">
           <SectionHeading
@@ -748,11 +894,9 @@ export default function Settings() {
               <div className="relative">
                 <Percent
                   size={17}
-                  className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${
-                    isRtl ? "right-3" : "left-3"
-                  }`}
+                  className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${isRtl ? "right-3" : "left-3"
+                    }`}
                 />
-
                 <input
                   type="number"
                   min="0"
@@ -763,7 +907,6 @@ export default function Settings() {
                   className={`${inputClass} ${isRtl ? "pr-10" : "pl-10"}`}
                 />
               </div>
-
               <p className="mt-2 text-xs text-slate-400">
                 {t.financeDesc}
               </p>
@@ -774,11 +917,9 @@ export default function Settings() {
               <div className="relative">
                 <Coins
                   size={17}
-                  className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${
-                    isRtl ? "right-3" : "left-3"
-                  }`}
+                  className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${isRtl ? "right-3" : "left-3"
+                    }`}
                 />
-
                 <select
                   value={settings.base_currency_id}
                   onChange={(e) =>
@@ -787,7 +928,6 @@ export default function Settings() {
                   className={`${inputClass} ${isRtl ? "pr-10" : "pl-10"}`}
                 >
                   <option value="">{t.currency}</option>
-
                   {currencies.map((currency) => (
                     <option key={currency.id} value={currency.id}>
                       {getCurrencyCode(currency)
@@ -798,7 +938,6 @@ export default function Settings() {
                   ))}
                 </select>
               </div>
-
               <p className="mt-2 text-xs text-slate-400">
                 {t.currencyDesc}
               </p>
@@ -813,7 +952,6 @@ export default function Settings() {
         </section>
       )}
 
-      {/* Settings Information */}
       <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
         <SectionHeading
           icon={Info}
@@ -838,14 +976,12 @@ export default function Settings() {
         </div>
       </section>
 
-      {/* Validation and Save */}
       {(error || message) && (
         <div
-          className={`flex items-center gap-2 rounded-xl border p-4 text-sm ${
-            error
+          className={`flex items-center gap-2 rounded-xl border p-4 text-sm ${error
               ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-500/10 dark:text-red-400"
               : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-400"
-          }`}
+            }`}
         >
           {error ? <Info size={18} /> : <CheckCircle2 size={18} />}
           {error || message}

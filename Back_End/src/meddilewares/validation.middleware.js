@@ -180,13 +180,17 @@ const schemas = {
         }
     },
     shop_settings: {
-        required: [],
-        fields: {
-            shop_name: 'str', phone: 'str', address: 'str',
-            invoice_prefix: 'str', invoice_footer: 'str',
-            tax_rate: 'num100', base_currency_id: 'id'
-        }
-    },
+    required: [],
+    fields: {
+        shop_name: 'str',
+        phone: 'str',
+        address: 'str',
+        invoice_prefix: 'str',
+        invoice_footer: 'str',
+        tax_rate: 'num100',
+        base_currency_id: 'id'
+    }
+},
     suppliers: {
         required: ['first_name'],
         fields: {

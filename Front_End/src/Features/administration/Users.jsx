@@ -132,6 +132,14 @@ export default function User() {
         getEmployees(),
         getRoles(),
       ]);
+      if(
+        !Array.isArray(usersData) ||
+        !Array.isArray(employeesData) ||
+        !Array.isArray(rolesData)
+      ) {
+        setPageError('You Dont tha Premission access to this section') 
+        return
+      }
 
       const employeeList = employeesData.map(employee => ({
         ...employee,

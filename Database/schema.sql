@@ -1,6 +1,6 @@
 -- Carpet Management System
 -- PostgreSQL schema generated from the user's XMind design.
--- Run this file first.
+
 
 BEGIN;
 
