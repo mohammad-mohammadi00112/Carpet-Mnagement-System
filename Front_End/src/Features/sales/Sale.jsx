@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Search,
   Plus,
@@ -11,8 +11,7 @@ import {
   CalendarDays,
   Pencil,
   Trash2,
-  RefreshCw,
-  Clock
+  RefreshCw
 } from "lucide-react";
 
 import {
@@ -21,6 +20,14 @@ import {
   updateSale,
   deleteSale
 } from "../services/sales/saleService";
+
+import { getCustomers } from "../services/contacts/customerService";
+import { getEmployees } from "../services/contacts/employeeService";
+import { getCurrencies } from "../services/finance/currenciesService";
+
+// --------------------------------------------------
+// TRANSLATIONS
+// --------------------------------------------------
 
 const translations = {
   en: {
@@ -38,6 +45,7 @@ const translations = {
     saleId: "Sale ID",
     customer: "Customer",
     employee: "Employee",
+    currency: "Currency",
     date: "Sale Date",
     amount: "Total Amount",
     discount: "Discount",
@@ -50,11 +58,14 @@ const translations = {
     cancelled: "Cancelled",
     createTitle: "Create New Sale",
     editTitle: "Edit Sale",
-    customerId: "Customer ID",
-    employeeId: "Employee ID",
-    currencyId: "Currency ID",
+    customerId: "Select Customer",
+    employeeId: "Select Employee",
+    currencyId: "Select Currency",
     saleDate: "Sale Date",
     tax: "Tax Amount",
+    selectCustomer: "Choose a customer",
+    selectEmployee: "Choose an employee",
+    selectCurrency: "Choose a currency",
     selectPayment: "Select Payment Status",
     save: "Save Sale",
     update: "Update Sale",
@@ -68,6 +79,7 @@ const translations = {
     delete: "Delete",
     confirmDelete: "Are you sure you want to delete this sale?",
     loading: "Loading sales...",
+    loadingOptions: "Loading customers, employees and currencies...",
     saving: "Saving...",
     deleting: "Deleting...",
     loadError: "Failed to load sales.",
@@ -81,7 +93,13 @@ const translations = {
     customerLabel: "Customer",
     employeeLabel: "Employee",
     due: "Due",
-    noNotes: "No notes"
+    noNotes: "No notes",
+    noCustomers: "No customers available",
+    noEmployees: "No employees available",
+    noCurrencies: "No currencies available",
+    relatedLoadError: "Could not load customers, employees or currencies.",
+    exchangeRate: "Exchange Rate",
+    refresh: "Refresh lists"
   },
 
   fa: {
@@ -99,6 +117,7 @@ const translations = {
     saleId: "شماره فروش",
     customer: "مشتری",
     employee: "کارمند",
+    currency: "واحد پول",
     date: "تاریخ فروش",
     amount: "مجموع مبلغ",
     discount: "تخفیف",
@@ -111,11 +130,14 @@ const translations = {
     cancelled: "لغو شده",
     createTitle: "ثبت فروش جدید",
     editTitle: "ویرایش فروش",
-    customerId: "شناسه مشتری",
-    employeeId: "شناسه کارمند",
-    currencyId: "شناسه واحد پول",
+    customerId: "انتخاب مشتری",
+    employeeId: "انتخاب کارمند",
+    currencyId: "انتخاب واحد پول",
     saleDate: "تاریخ فروش",
     tax: "مقدار مالیه",
+    selectCustomer: "یک مشتری انتخاب کنید",
+    selectEmployee: "یک کارمند انتخاب کنید",
+    selectCurrency: "یک واحد پول انتخاب کنید",
     selectPayment: "انتخاب وضعیت پرداخت",
     save: "ثبت فروش",
     update: "ذخیره تغییرات",
@@ -129,6 +151,7 @@ const translations = {
     delete: "حذف",
     confirmDelete: "آیا مطمئن هستید که می‌خواهید این فروش را حذف کنید؟",
     loading: "در حال دریافت فروشات...",
+    loadingOptions: "در حال دریافت مشتریان، کارمندان و اسعار...",
     saving: "در حال ذخیره...",
     deleting: "در حال حذف...",
     loadError: "دریافت فروشات ناموفق بود.",
@@ -142,7 +165,13 @@ const translations = {
     customerLabel: "مشتری",
     employeeLabel: "کارمند",
     due: "بدهی",
-    noNotes: "بدون یادداشت"
+    noNotes: "بدون یادداشت",
+    noCustomers: "مشتری موجود نیست",
+    noEmployees: "کارمند موجود نیست",
+    noCurrencies: "واحد پول موجود نیست",
+    relatedLoadError: "دریافت مشتریان، کارمندان یا اسعار ناموفق بود.",
+    exchangeRate: "نرخ تبادله",
+    refresh: "تازه‌سازی فهرست‌ها"
   },
 
   ps: {
@@ -160,6 +189,7 @@ const translations = {
     saleId: "د پلورنې شمېره",
     customer: "پېرودونکی",
     employee: "کارکوونکی",
+    currency: "د پیسو واحد",
     date: "د پلورنې نېټه",
     amount: "ټوله اندازه",
     discount: "تخفیف",
@@ -172,11 +202,14 @@ const translations = {
     cancelled: "لغوه شوې",
     createTitle: "نوې پلورنه ثبتول",
     editTitle: "پلورنه سمول",
-    customerId: "د پېرودونکي پېژندشمېره",
-    employeeId: "د کارکوونکي پېژندشمېره",
-    currencyId: "د پیسو واحد پېژندشمېره",
+    customerId: "پېرودونکی وټاکئ",
+    employeeId: "کارکوونکی وټاکئ",
+    currencyId: "د پیسو واحد وټاکئ",
     saleDate: "د پلورنې نېټه",
     tax: "مالیه",
+    selectCustomer: "یو پېرودونکی وټاکئ",
+    selectEmployee: "یو کارکوونکی وټاکئ",
+    selectCurrency: "د پیسو واحد وټاکئ",
     selectPayment: "د تادیې حالت وټاکئ",
     save: "پلورنه ثبتول",
     update: "بدلونونه ثبتول",
@@ -190,6 +223,7 @@ const translations = {
     delete: "ړنګول",
     confirmDelete: "ایا ډاډه یاست چې دا پلورنه ړنګول غواړئ؟",
     loading: "پلورنې ترلاسه کېږي...",
+    loadingOptions: "پېرودونکي، کارکوونکي او د پیسو واحدونه ترلاسه کېږي...",
     saving: "ثبت کېږي...",
     deleting: "ړنګېږي...",
     loadError: "د پلورنو ترلاسه کول ناکام شول.",
@@ -203,9 +237,19 @@ const translations = {
     customerLabel: "پېرودونکی",
     employeeLabel: "کارکوونکی",
     due: "پور",
-    noNotes: "یادښت نشته"
+    noNotes: "یادښت نشته",
+    noCustomers: "پېرودونکی نشته",
+    noEmployees: "کارکوونکی نشته",
+    noCurrencies: "د پیسو واحد نشته",
+    relatedLoadError: "د پېرودونکو، کارکوونکو یا پیسو واحدونو ترلاسه کول ناکام شول.",
+    exchangeRate: "د تبادلې نرخ",
+    refresh: "لړلیک تازه کول"
   }
 };
+
+// --------------------------------------------------
+// HELPERS
+// --------------------------------------------------
 
 const getLocalDateTime = () => {
   const date = new Date();
@@ -224,9 +268,76 @@ const toDateTimeInput = (value) => {
 };
 
 const getErrorMessage = (error, fallback) => {
-  return error.response?.data?.message ||
+  return (
+    error.response?.data?.message ||
     error.response?.data?.error ||
-    fallback;
+    error.message ||
+    fallback
+  );
+};
+
+// Supports APIs returning an array directly or inside an object.
+const normalizeList = (data, keys = []) => {
+  if (Array.isArray(data)) return data;
+
+  if (!data || typeof data !== "object") return [];
+
+  for (const key of keys) {
+    if (Array.isArray(data[key])) return data[key];
+  }
+
+  return [];
+};
+
+const getPersonName = (person) => {
+  if (!person) return "";
+
+  const fullName =
+    person.full_name ||
+    person.name ||
+    person.customer_name ||
+    person.employee_name;
+
+  if (fullName) return fullName;
+
+  const firstName =
+    person.first_name ||
+    person.firstname ||
+    person.firstName ||
+    "";
+
+  const lastName =
+    person.last_name ||
+    person.lastname ||
+    person.lastName ||
+    "";
+
+  const combined = `${firstName} ${lastName}`.trim();
+
+  return combined || person.username || "";
+};
+
+const getCurrencyName = (currency) => {
+  if (!currency) return "";
+
+  const name =
+    currency.currency_name ||
+    currency.name ||
+    currency.currency ||
+    currency.title ||
+    "";
+
+  const code =
+    currency.currency_code ||
+    currency.code ||
+    currency.symbol ||
+    "";
+
+  if (name && code && name !== code) {
+    return `${name} (${code})`;
+  }
+
+  return name || code || "";
 };
 
 const Sale = () => {
@@ -234,8 +345,17 @@ const Sale = () => {
   const t = translations[language] || translations.en;
   const rtl = ["fa", "ps"].includes(language);
 
+  // ------------------------------------------------
+  // STATES
+  // ------------------------------------------------
+
   const [sales, setSales] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [currencies, setCurrencies] = useState([]);
+
   const [loading, setLoading] = useState(true);
+  const [loadingOptions, setLoadingOptions] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
@@ -250,6 +370,7 @@ const Sale = () => {
   const [error, setError] = useState("");
   const [apiError, setApiError] = useState("");
   const [success, setSuccess] = useState("");
+  const [optionsError, setOptionsError] = useState("");
 
   const [form, setForm] = useState({
     customer_id: "",
@@ -264,9 +385,17 @@ const Sale = () => {
     notes: ""
   });
 
+  // ------------------------------------------------
+  // FORMATTERS
+  // ------------------------------------------------
+
   const money = (value) =>
     new Intl.NumberFormat(
-      language === "en" ? "en-US" : language === "ps" ? "ps-AF" : "fa-IR"
+      language === "en"
+        ? "en-US"
+        : language === "ps"
+          ? "ps-AF"
+          : "fa-IR"
     ).format(Number(value || 0));
 
   const dateFormat = (value) => {
@@ -276,28 +405,144 @@ const Sale = () => {
     if (Number.isNaN(date.getTime())) return "—";
 
     return date.toLocaleDateString(
-      language === "en" ? "en-US" : language === "ps" ? "ps-AF" : "fa-IR"
+      language === "en"
+        ? "en-US"
+        : language === "ps"
+          ? "ps-AF"
+          : "fa-IR"
     );
   };
 
-  const fetchSales = async () => {
+  // ------------------------------------------------
+  // LOOKUP HELPERS
+  // ------------------------------------------------
+
+  const findCustomer = (id) =>
+    customers.find((item) => Number(item.id) === Number(id));
+
+  const findEmployee = (id) =>
+    employees.find((item) => Number(item.id) === Number(id));
+
+  const findCurrency = (id) =>
+    currencies.find((item) => Number(item.id) === Number(id));
+
+  const customerName = (id) => {
+    const customer = findCustomer(id);
+    return getPersonName(customer) || `Customer #${id}`;
+  };
+
+  const employeeName = (id) => {
+    const employee = findEmployee(id);
+    return getPersonName(employee) || `Employee #${id}`;
+  };
+
+  const currencyName = (id) => {
+    const currency = findCurrency(id);
+    return getCurrencyName(currency) || `Currency #${id}`;
+  };
+
+  // ------------------------------------------------
+  // FETCH SALES
+  // ------------------------------------------------
+
+  const fetchSales = useCallback(async () => {
     try {
       setLoading(true);
       setApiError("");
 
       const data = await getSales();
-      setSales(Array.isArray(data) ? data : data.sales || []);
+
+      setSales(
+        normalizeList(data, ["sales", "data", "results"])
+      );
     } catch (err) {
       console.error("Failed to fetch sales:", err);
       setApiError(getErrorMessage(err, t.loadError));
     } finally {
       setLoading(false);
     }
-  };
+  }, [t.loadError]);
 
+  // ------------------------------------------------
+  // FETCH CUSTOMERS, EMPLOYEES AND CURRENCIES
+  // ------------------------------------------------
+
+  const fetchDropdownData = useCallback(async () => {
+    try {
+      setLoadingOptions(true);
+      setOptionsError("");
+
+      const results = await Promise.allSettled([
+        getCustomers(),
+        getEmployees(),
+        getCurrencies()
+      ]);
+
+      const [customerResult, employeeResult, currencyResult] = results;
+
+      if (customerResult.status === "fulfilled") {
+        setCustomers(
+          normalizeList(customerResult.value, [
+            "customers",
+            "data",
+            "results"
+          ])
+        );
+      } else {
+        console.error("Failed to fetch customers:", customerResult.reason);
+      }
+
+      if (employeeResult.status === "fulfilled") {
+        setEmployees(
+          normalizeList(employeeResult.value, [
+            "employees",
+            "data",
+            "results"
+          ])
+        );
+      } else {
+        console.error("Failed to fetch employees:", employeeResult.reason);
+      }
+
+      if (currencyResult.status === "fulfilled") {
+        setCurrencies(
+          normalizeList(currencyResult.value, [
+            "currencies",
+            "data",
+            "results"
+          ])
+        );
+      } else {
+        console.error("Failed to fetch currencies:", currencyResult.reason);
+      }
+
+      if (results.some((result) => result.status === "rejected")) {
+        setOptionsError(t.relatedLoadError);
+      }
+    } catch (err) {
+      console.error("Failed to fetch dropdown data:", err);
+      setOptionsError(t.relatedLoadError);
+    } finally {
+      setLoadingOptions(false);
+    }
+  }, [t.relatedLoadError]);
+
+  // Initial page loading
   useEffect(() => {
     fetchSales();
-  }, []);
+    fetchDropdownData();
+  }, [fetchSales, fetchDropdownData]);
+
+  // Refresh dropdown lists whenever the sale modal opens.
+  useEffect(() => {
+    if (showModal) {
+      fetchDropdownData();
+    }
+  }, [showModal, fetchDropdownData]);
+
+  // ------------------------------------------------
+  // FILTER SALES
+  // ------------------------------------------------
 
   const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
@@ -305,8 +550,8 @@ const Sale = () => {
 
       const matchesSearch =
         String(sale.id).includes(searchText) ||
-        `customer #${sale.customer_id}`.toLowerCase().includes(searchText) ||
-        `employee #${sale.employee_id}`.toLowerCase().includes(searchText) ||
+        customerName(sale.customer_id).toLowerCase().includes(searchText) ||
+        employeeName(sale.employee_id).toLowerCase().includes(searchText) ||
         (sale.notes || "").toLowerCase().includes(searchText);
 
       const matchesPayment =
@@ -319,11 +564,25 @@ const Sale = () => {
 
       return matchesSearch && matchesPayment && matchesStatus;
     });
-  }, [sales, search, paymentFilter, statusFilter]);
+  }, [
+    sales,
+    search,
+    paymentFilter,
+    statusFilter,
+    customers,
+    employees
+  ]);
+
+  // ------------------------------------------------
+  // STATISTICS
+  // ------------------------------------------------
 
   const totalRevenue = sales
     .filter((sale) => sale.status === "active")
-    .reduce((sum, sale) => sum + Number(sale.total_amount || 0), 0);
+    .reduce(
+      (sum, sale) => sum + Number(sale.total_amount || 0),
+      0
+    );
 
   const stats = [
     {
@@ -340,13 +599,17 @@ const Sale = () => {
     },
     {
       label: t.paid,
-      value: sales.filter((sale) => sale.payment_status === "paid").length,
+      value: sales.filter(
+        (sale) => sale.payment_status === "paid"
+      ).length,
       icon: CheckCircle2,
       color: "emerald"
     },
     {
       label: t.unpaid,
-      value: sales.filter((sale) => sale.payment_status === "unpaid").length,
+      value: sales.filter(
+        (sale) => sale.payment_status === "unpaid"
+      ).length,
       icon: AlertCircle,
       color: "rose"
     }
@@ -358,12 +621,30 @@ const Sale = () => {
     unpaid: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400"
   };
 
+  const colors = {
+    blue: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
+    violet: "bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400",
+    emerald: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
+    rose: "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400"
+  };
+
+  // ------------------------------------------------
+  // FORM
+  // ------------------------------------------------
+
   const resetForm = () => {
+    const defaultCurrency = currencies.find(
+      (currency) =>
+        Number(currency.id) === 1 ||
+        currency.is_base_currency === true ||
+        currency.is_default === true
+    );
+
     setForm({
       customer_id: "",
       employee_id: "",
       sale_date: getLocalDateTime(),
-      currency_id: "1",
+      currency_id: String(defaultCurrency?.id || currencies[0]?.id || ""),
       exchange_rate: "1",
       tax_amount: "0",
       payment_status: "unpaid",
@@ -376,19 +657,20 @@ const Sale = () => {
     setEditingSale(null);
   };
 
-  const openCreateModal = () => {
+  const openCreateModal = async () => {
     resetForm();
     setShowModal(true);
+    await fetchDropdownData();
   };
 
-  const openEditModal = (sale) => {
+  const openEditModal = async (sale) => {
     setEditingSale(sale);
 
     setForm({
       customer_id: String(sale.customer_id ?? ""),
       employee_id: String(sale.employee_id ?? ""),
       sale_date: toDateTimeInput(sale.sale_date),
-      currency_id: String(sale.currency_id ?? "1"),
+      currency_id: String(sale.currency_id ?? ""),
       exchange_rate: String(sale.exchange_rate ?? "1"),
       tax_amount: String(sale.tax_amount ?? "0"),
       payment_status: sale.payment_status || "unpaid",
@@ -401,6 +683,7 @@ const Sale = () => {
 
     setError("");
     setShowModal(true);
+    await fetchDropdownData();
   };
 
   const closeModal = () => {
@@ -409,6 +692,10 @@ const Sale = () => {
     setShowModal(false);
     resetForm();
   };
+
+  // ------------------------------------------------
+  // SUBMIT SALE
+  // ------------------------------------------------
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -439,6 +726,7 @@ const Sale = () => {
       return;
     }
 
+    // These are the actual database IDs from the dropdown selections.
     const saleData = {
       customer_id: customerId,
       employee_id: employeeId,
@@ -466,6 +754,7 @@ const Sale = () => {
       }
 
       await fetchSales();
+
       setShowModal(false);
       resetForm();
     } catch (err) {
@@ -475,6 +764,10 @@ const Sale = () => {
       setSaving(false);
     }
   };
+
+  // ------------------------------------------------
+  // DELETE SALE
+  // ------------------------------------------------
 
   const handleDelete = async (sale) => {
     const confirmed = window.confirm(
@@ -507,17 +800,21 @@ const Sale = () => {
     }
   };
 
-  const colors = {
-    blue: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
-    violet: "bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400",
-    emerald: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
-    rose: "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400"
-  };
+  // ------------------------------------------------
+  // SHARED INPUT STYLES
+  // ------------------------------------------------
+
+  const inputClass =
+    "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white";
+
+  // ------------------------------------------------
+  // UI
+  // ------------------------------------------------
 
   return (
     <div dir={rtl ? "rtl" : "ltr"} className="space-y-6">
 
-      {/* Header */}
+      {/* HEADER */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
@@ -537,7 +834,7 @@ const Sale = () => {
         </button>
       </div>
 
-      {/* Notifications */}
+      {/* SUCCESS */}
       {success && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400">
           <span>{success}</span>
@@ -547,6 +844,7 @@ const Sale = () => {
         </div>
       )}
 
+      {/* API ERROR */}
       {apiError && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400">
           <span>{apiError}</span>
@@ -560,7 +858,7 @@ const Sale = () => {
         </div>
       )}
 
-      {/* Statistics */}
+      {/* STATISTICS */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -579,6 +877,7 @@ const Sale = () => {
                     {stat.value}
                   </p>
                 </div>
+
                 <div className={`rounded-xl p-3 ${colors[stat.color]}`}>
                   <Icon size={21} />
                 </div>
@@ -588,7 +887,7 @@ const Sale = () => {
         })}
       </div>
 
-      {/* Filters */}
+      {/* FILTERS */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="relative">
@@ -598,11 +897,12 @@ const Sale = () => {
                 rtl ? "right-3" : "left-3"
               }`}
             />
+
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t.search}
-              className={`w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white ${
+              className={`${inputClass} ${
                 rtl ? "pl-3 pr-10" : "pl-10 pr-3"
               }`}
             />
@@ -611,7 +911,7 @@ const Sale = () => {
           <select
             value={paymentFilter}
             onChange={(e) => setPaymentFilter(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            className={inputClass}
           >
             <option value="all">{t.allPayments}</option>
             <option value="paid">{t.paid}</option>
@@ -622,7 +922,7 @@ const Sale = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            className={inputClass}
           >
             <option value="all">{t.allRecords}</option>
             <option value="active">{t.active}</option>
@@ -631,12 +931,13 @@ const Sale = () => {
         </div>
       </div>
 
-      {/* Sales Table */}
+      {/* SALES TABLE */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 dark:border-slate-800">
           <h2 className="font-semibold text-slate-800 dark:text-white">
             {t.title}
           </h2>
+
           <span className="text-xs text-slate-500 dark:text-slate-400">
             {filteredSales.length} {t.records}
           </span>
@@ -654,7 +955,7 @@ const Sale = () => {
           </div>
         ) : (
           <>
-            {/* Desktop Table */}
+            {/* DESKTOP TABLE */}
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
@@ -691,11 +992,11 @@ const Sale = () => {
                       </td>
 
                       <td className="whitespace-nowrap px-4 py-4 text-slate-600 dark:text-slate-300">
-                        Customer #{sale.customer_id}
+                        {customerName(sale.customer_id)}
                       </td>
 
                       <td className="whitespace-nowrap px-4 py-4 text-slate-600 dark:text-slate-300">
-                        Employee #{sale.employee_id}
+                        {employeeName(sale.employee_id)}
                       </td>
 
                       <td className="whitespace-nowrap px-4 py-4 text-slate-500 dark:text-slate-400">
@@ -770,7 +1071,7 @@ const Sale = () => {
               </table>
             </div>
 
-            {/* Mobile and Tablet Cards */}
+            {/* MOBILE AND TABLET CARDS */}
             <div className="grid grid-cols-1 divide-y divide-slate-100 dark:divide-slate-800 md:grid-cols-2 lg:hidden">
               {filteredSales.map((sale) => (
                 <div key={sale.id} className="space-y-3 p-4">
@@ -792,14 +1093,14 @@ const Sale = () => {
                     <div>
                       <p className="text-xs text-slate-400">{t.customer}</p>
                       <p className="mt-1 text-slate-700 dark:text-slate-200">
-                        Customer #{sale.customer_id}
+                        {customerName(sale.customer_id)}
                       </p>
                     </div>
 
                     <div>
                       <p className="text-xs text-slate-400">{t.employee}</p>
                       <p className="mt-1 text-slate-700 dark:text-slate-200">
-                        Employee #{sale.employee_id}
+                        {employeeName(sale.employee_id)}
                       </p>
                     </div>
 
@@ -865,7 +1166,7 @@ const Sale = () => {
         )}
       </div>
 
-      {/* Create / Edit Sale Modal */}
+      {/* CREATE / EDIT MODAL */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
           <div className="my-auto w-full max-w-2xl rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900">
@@ -883,45 +1184,194 @@ const Sale = () => {
               </button>
             </div>
 
+            {/* DROPDOWN LOADING / ERROR */}
+            {loadingOptions && (
+              <div className="mb-4 flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2.5 text-xs text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
+                <RefreshCw size={15} className="animate-spin" />
+                {t.loadingOptions}
+              </div>
+            )}
+
+            {optionsError && (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-rose-50 px-3 py-2.5 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">
+                <span>{optionsError}</span>
+
+                <button
+                  type="button"
+                  onClick={fetchDropdownData}
+                  className="font-semibold underline"
+                >
+                  {t.retry}
+                </button>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {[
-                  ["customer_id", t.customerId, "number"],
-                  ["employee_id", t.employeeId, "number"],
-                  ["currency_id", t.currencyId, "number"],
-                  ["sale_date", t.saleDate, "datetime-local"],
-                  ["exchange_rate", "Exchange Rate", "number"],
-                  ["tax_amount", t.tax, "number"],
-                  ["due_date", t.dueDate, "date"]
-                ].map(([name, label, type]) => (
-                  <div key={name}>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                      {label}
-                    </label>
 
-                    <input
-                      type={type}
-                      min={type === "number" ? (name === "customer_id" || name === "employee_id" || name === "currency_id" ? "1" : "0") : undefined}
-                      step={type === "number" ? "0.01" : undefined}
-                      required={[
-                        "customer_id",
-                        "employee_id",
-                        "currency_id",
-                        "sale_date",
-                        "exchange_rate"
-                      ].includes(name)}
-                      value={form[name]}
-                      onChange={(e) =>
-                        setForm((previous) => ({
-                          ...previous,
-                          [name]: e.target.value
-                        }))
-                      }
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                    />
-                  </div>
-                ))}
+                {/* CUSTOMER DROPDOWN */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {t.customerId}
+                  </label>
 
+                  <select
+                    required
+                    value={form.customer_id}
+                    onChange={(e) =>
+                      setForm((previous) => ({
+                        ...previous,
+                        customer_id: e.target.value
+                      }))
+                    }
+                    className={inputClass}
+                  >
+                    <option value="">{t.selectCustomer}</option>
+
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {getPersonName(customer) || `Customer #${customer.id}`}
+                      </option>
+                    ))}
+                  </select>
+
+                  {customers.length === 0 && !loadingOptions && (
+                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                      {t.noCustomers}
+                    </p>
+                  )}
+                </div>
+
+                {/* EMPLOYEE DROPDOWN */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {t.employeeId}
+                  </label>
+
+                  <select
+                    required
+                    value={form.employee_id}
+                    onChange={(e) =>
+                      setForm((previous) => ({
+                        ...previous,
+                        employee_id: e.target.value
+                      }))
+                    }
+                    className={inputClass}
+                  >
+                    <option value="">{t.selectEmployee}</option>
+
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {getPersonName(employee) || `Employee #${employee.id}`}
+                      </option>
+                    ))}
+                  </select>
+
+                  {employees.length === 0 && !loadingOptions && (
+                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                      {t.noEmployees}
+                    </p>
+                  )}
+                </div>
+
+                {/* CURRENCY DROPDOWN */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {t.currencyId}
+                  </label>
+
+                  <select
+                    required
+                    value={form.currency_id}
+                    onChange={(e) =>
+                      setForm((previous) => ({
+                        ...previous,
+                        currency_id: e.target.value
+                      }))
+                    }
+                    className={inputClass}
+                  >
+                    <option value="">{t.selectCurrency}</option>
+
+                    {currencies.map((currency) => (
+                      <option key={currency.id} value={currency.id}>
+                        {getCurrencyName(currency) || `Currency #${currency.id}`}
+                      </option>
+                    ))}
+                  </select>
+
+                  {currencies.length === 0 && !loadingOptions && (
+                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                      {t.noCurrencies}
+                    </p>
+                  )}
+                </div>
+
+                {/* SALE DATE */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {t.saleDate}
+                  </label>
+
+                  <input
+                    type="datetime-local"
+                    required
+                    value={form.sale_date}
+                    onChange={(e) =>
+                      setForm((previous) => ({
+                        ...previous,
+                        sale_date: e.target.value
+                      }))
+                    }
+                    className={inputClass}
+                  />
+                </div>
+
+                {/* EXCHANGE RATE */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {t.exchangeRate}
+                  </label>
+
+                  <input
+                    type="number"
+                    min="0.000001"
+                    step="any"
+                    required
+                    value={form.exchange_rate}
+                    onChange={(e) =>
+                      setForm((previous) => ({
+                        ...previous,
+                        exchange_rate: e.target.value
+                      }))
+                    }
+                    className={inputClass}
+                  />
+                </div>
+
+                {/* TAX */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {t.tax}
+                  </label>
+
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={form.tax_amount}
+                    onChange={(e) =>
+                      setForm((previous) => ({
+                        ...previous,
+                        tax_amount: e.target.value
+                      }))
+                    }
+                    className={inputClass}
+                  />
+                </div>
+
+                {/* PAYMENT STATUS */}
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                     {t.payment}
@@ -935,7 +1385,7 @@ const Sale = () => {
                         payment_status: e.target.value
                       }))
                     }
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    className={inputClass}
                   >
                     <option value="unpaid">{t.unpaid}</option>
                     <option value="partial">{t.partial}</option>
@@ -943,6 +1393,7 @@ const Sale = () => {
                   </select>
                 </div>
 
+                {/* RECORD STATUS */}
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                     {t.status}
@@ -956,14 +1407,34 @@ const Sale = () => {
                         status: e.target.value
                       }))
                     }
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    className={inputClass}
                   >
                     <option value="active">{t.active}</option>
                     <option value="cancelled">{t.cancelled}</option>
                   </select>
                 </div>
+
+                {/* DUE DATE */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {t.dueDate}
+                  </label>
+
+                  <input
+                    type="date"
+                    value={form.due_date}
+                    onChange={(e) =>
+                      setForm((previous) => ({
+                        ...previous,
+                        due_date: e.target.value
+                      }))
+                    }
+                    className={inputClass}
+                  />
+                </div>
               </div>
 
+              {/* NOTES */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.notes}
@@ -979,7 +1450,7 @@ const Sale = () => {
                     }))
                   }
                   placeholder={t.enterNotes}
-                  className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className={`${inputClass} resize-none`}
                 />
               </div>
 
@@ -1009,11 +1480,18 @@ const Sale = () => {
 
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || loadingOptions}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {saving && <RefreshCw size={16} className="animate-spin" />}
-                  {saving ? t.saving : editingSale ? t.update : t.save}
+                  {saving && (
+                    <RefreshCw size={16} className="animate-spin" />
+                  )}
+
+                  {saving
+                    ? t.saving
+                    : editingSale
+                      ? t.update
+                      : t.save}
                 </button>
               </div>
             </form>
@@ -1021,7 +1499,7 @@ const Sale = () => {
         </div>
       )}
 
-      {/* Sale Details Modal */}
+      {/* SALE DETAILS MODAL */}
       {selectedSale && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
           <div className="my-auto w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900">
@@ -1040,14 +1518,21 @@ const Sale = () => {
 
             <div className="grid grid-cols-2 gap-4 text-sm">
               {[
-                [t.customer, `Customer #${selectedSale.customer_id}`],
-                [t.employee, `Employee #${selectedSale.employee_id}`],
+                [t.customer, customerName(selectedSale.customer_id)],
+                [t.employee, employeeName(selectedSale.employee_id)],
+                [t.currency, currencyName(selectedSale.currency_id)],
                 [t.date, dateFormat(selectedSale.sale_date)],
                 [t.amount, money(selectedSale.total_amount)],
                 [t.discount, money(selectedSale.discount)],
                 [t.tax, money(selectedSale.tax_amount)],
-                [t.payment, t[selectedSale.payment_status] || selectedSale.payment_status],
-                [t.status, t[selectedSale.status] || selectedSale.status],
+                [
+                  t.payment,
+                  t[selectedSale.payment_status] || selectedSale.payment_status
+                ],
+                [
+                  t.status,
+                  t[selectedSale.status] || selectedSale.status
+                ],
                 [t.dueDate, dateFormat(selectedSale.due_date)]
               ].map(([label, value]) => (
                 <div
@@ -1072,8 +1557,9 @@ const Sale = () => {
             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
               <button
                 onClick={() => {
+                  const sale = selectedSale;
                   setSelectedSale(null);
-                  openEditModal(selectedSale);
+                  openEditModal(sale);
                 }}
                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
               >

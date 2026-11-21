@@ -29,8 +29,7 @@ import {
 
 import api from "../services/api";
 
-// ======================================================
-// CONSTANTS
+
 // ======================================================
 
 const STAT_CONFIG = {
@@ -70,7 +69,7 @@ const ACTIVITY_CONFIG = {
     icon: Receipt,
     color: "rose",
   },
-};
+}
 
 const colorStyles = {
   teal: "bg-teal-50 text-teal-600 dark:bg-teal-500/10 dark:text-teal-400",
@@ -81,10 +80,8 @@ const colorStyles = {
   pink: "bg-pink-50 text-pink-600 dark:bg-pink-500/10 dark:text-pink-400",
   amber: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
   rose: "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400",
-};
+}
 
-// ======================================================
-// TRANSLATIONS
 // ======================================================
 
 const translations = {
@@ -312,8 +309,6 @@ const translations = {
 };
 
 // ======================================================
-// HELPER FUNCTIONS
-// ======================================================
 
 const formatNumber = (value, language = "en") => {
   return Number(value || 0).toLocaleString(
@@ -321,8 +316,8 @@ const formatNumber = (value, language = "en") => {
     {
       maximumFractionDigits: 2,
     }
-  );
-};
+  )
+}
 
 const formatCurrency = (value, language = "en") => {
   return `${formatNumber(value, language)} AFN`;
@@ -359,7 +354,6 @@ const formatChange = (value, language = "en") => {
 
 // ======================================================
 // DASHBOARD COMPONENT
-// ======================================================
 
 function Dashboard() {
   const { i18n } = useTranslation();
@@ -475,7 +469,7 @@ function Dashboard() {
       Number(item.sales || 0),
       Number(item.purchases || 0),
     ])
-  );
+  )
 
   // Financial chart percentages
   const revenue = Math.max(0, Number(financialSummary.totalRevenue || 0));

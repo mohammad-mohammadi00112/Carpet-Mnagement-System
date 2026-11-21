@@ -20,6 +20,11 @@ import {
 } from "../services/stockMovment/StockMovement";
 
 import { getLocations } from "../services/locations/locationService";
+import { getCarpets } from "../services/carpets/carpetService";
+
+// ======================================================
+// TRANSLATIONS
+// ======================================================
 
 const translations = {
   en: {
@@ -56,7 +61,8 @@ const translations = {
     positive: "Increase",
     negative: "Decrease",
     selectLocation: "Select Location",
-    carpetId: "Carpet ID",
+    selectCarpet: "Select Carpet",
+    noCarpets: "No carpets available",
     quantityPlaceholder: "+5 or -2"
   },
 
@@ -94,7 +100,8 @@ const translations = {
     positive: "افزایش",
     negative: "کاهش",
     selectLocation: "انتخاب موقعیت",
-    carpetId: "آی‌دی قالین",
+    selectCarpet: "انتخاب قالین",
+    noCarpets: "هیچ قالینی موجود نیست",
     quantityPlaceholder: "+5 یا -2"
   },
 
@@ -132,7 +139,8 @@ const translations = {
     positive: "زیاتوالی",
     negative: "کموالی",
     selectLocation: "ځای وټاکئ",
-    carpetId: "د قالین پېژندشمېره",
+    selectCarpet: "قالین وټاکئ",
+    noCarpets: "هیڅ قالین شتون نه لري",
     quantityPlaceholder: "+5 یا -2"
   }
 };
@@ -145,6 +153,10 @@ const movementTypes = [
   "transfer_out",
   "adjustment"
 ];
+
+// ======================================================
+// COMPONENT
+// ======================================================
 
 const StockMovements = ({ language: languageProp }) => {
   const { i18n } = useTranslation();
@@ -160,8 +172,13 @@ const StockMovements = ({ language: languageProp }) => {
   const t = translations[language] || translations.en;
   const isRTL = language === "fa" || language === "ps";
 
+  // --------------------------------------------------
+  // STATES
+  // --------------------------------------------------
+
   const [movements, setMovements] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [carpets, setCarpets] = useState([]);
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -169,6 +186,7 @@ const StockMovements = ({ language: languageProp }) => {
 
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingCarpets, setLoadingCarpets] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [error, setError] = useState("");
@@ -181,13 +199,32 @@ const StockMovements = ({ language: languageProp }) => {
     note: ""
   });
 
-  // Load Stock Movements
+  // --------------------------------------------------
+  // INPUT STYLES
+  // --------------------------------------------------
+
+  const inputClass = `
+    w-full rounded-lg border border-slate-200
+    bg-white px-3 py-2.5 text-slate-800
+    outline-none transition focus:border-blue-500
+    dark:border-slate-700 dark:bg-slate-800
+    dark:text-slate-100 dark:placeholder:text-slate-400
+  `;
+
+  const optionClass =
+    "bg-white text-slate-900 dark:bg-slate-800 dark:text-white";
+
+  // --------------------------------------------------
+  // LOAD STOCK MOVEMENTS
+  // --------------------------------------------------
+
   const loadMovements = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
 
       const data = await getStockMovements();
+
       setMovements(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Load Stock Movements Error:", err);
@@ -197,22 +234,65 @@ const StockMovements = ({ language: languageProp }) => {
     }
   }, [t.error]);
 
-  // Load All Locations Independently
+  // --------------------------------------------------
+  // LOAD LOCATIONS
+  // --------------------------------------------------
+
   const loadLocations = useCallback(async () => {
     try {
       const data = await getLocations();
-      setLocations(Array.isArray(data) ? data : []);
+
+      const locationList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+          ? data.data
+          : [];
+
+      setLocations(locationList);
     } catch (err) {
       console.error("Load Locations Error:", err);
     }
   }, []);
 
+  // --------------------------------------------------
+  // LOAD CARPETS
+  // --------------------------------------------------
+
+  const loadCarpets = useCallback(async () => {
+    try {
+      setLoadingCarpets(true);
+
+      const data = await getCarpets();
+
+      const carpetList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+          ? data.data
+          : [];
+
+      setCarpets(carpetList);
+    } catch (err) {
+      console.error("Load Carpets Error:", err);
+      setError(err.response?.data?.message || t.error);
+    } finally {
+      setLoadingCarpets(false);
+    }
+  }, [t.error]);
+
+  // --------------------------------------------------
+  // INITIAL DATA LOADING
+  // --------------------------------------------------
+
   useEffect(() => {
     loadMovements();
     loadLocations();
-  }, [loadMovements, loadLocations]);
+    loadCarpets();
+  }, [loadMovements, loadLocations, loadCarpets]);
 
-  // Filter Movements
+  // --------------------------------------------------
+  // FILTER MOVEMENTS
+  // --------------------------------------------------
+
   const filteredMovements = useMemo(() => {
     return movements.filter((item) => {
       const searchText = search.toLowerCase();
@@ -236,7 +316,10 @@ const StockMovements = ({ language: languageProp }) => {
     });
   }, [movements, search, typeFilter, locationFilter]);
 
-  // Statistics
+  // --------------------------------------------------
+  // STATISTICS
+  // --------------------------------------------------
+
   const stats = useMemo(() => ({
     total: movements.length,
 
@@ -253,7 +336,31 @@ const StockMovements = ({ language: languageProp }) => {
     ).length
   }), [movements]);
 
-  // Submit Adjustment
+  // --------------------------------------------------
+  // OPEN ADJUSTMENT MODAL
+  // --------------------------------------------------
+
+  const openAdjustmentModal = async () => {
+    setError("");
+    setSuccess("");
+
+    setForm({
+      carpet_id: "",
+      location_id: "",
+      quantity_change: "",
+      note: ""
+    });
+
+    setShowModal(true);
+
+    // Refresh carpet list whenever the modal opens.
+    await loadCarpets();
+  };
+
+  // --------------------------------------------------
+  // SUBMIT ADJUSTMENT
+  // --------------------------------------------------
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -262,6 +369,15 @@ const StockMovements = ({ language: languageProp }) => {
       !form.location_id ||
       !form.quantity_change ||
       Number(form.quantity_change) === 0
+    ) {
+      setError(t.required);
+      return;
+    }
+
+    if (
+      !carpets.some(
+        (carpet) => String(carpet.id) === String(form.carpet_id)
+      )
     ) {
       setError(t.required);
       return;
@@ -298,7 +414,10 @@ const StockMovements = ({ language: languageProp }) => {
     }
   };
 
-  // Movement Badge Style
+  // --------------------------------------------------
+  // MOVEMENT BADGE STYLE
+  // --------------------------------------------------
+
   const getMovementStyle = (type) => {
     switch (type) {
       case "purchase":
@@ -315,7 +434,10 @@ const StockMovements = ({ language: languageProp }) => {
     }
   };
 
-  // Movement Icon
+  // --------------------------------------------------
+  // MOVEMENT ICON
+  // --------------------------------------------------
+
   const getMovementIcon = (type) => {
     switch (type) {
       case "purchase":
@@ -332,7 +454,10 @@ const StockMovements = ({ language: languageProp }) => {
     }
   };
 
-  // Format Date
+  // --------------------------------------------------
+  // FORMAT DATE
+  // --------------------------------------------------
+
   const formatDate = (date) => {
     if (!date) return "—";
 
@@ -346,24 +471,17 @@ const StockMovements = ({ language: languageProp }) => {
     return new Date(date).toLocaleString(locale);
   };
 
-  // Input and Select Styles
-  const inputClass = `
-    w-full rounded-lg border border-slate-200
-    bg-white px-3 py-2.5 text-slate-800
-    outline-none transition focus:border-blue-500
-    dark:border-slate-700 dark:bg-slate-800
-    dark:text-slate-100 dark:placeholder:text-slate-400
-  `;
-
-  const optionClass =
-    "bg-white text-slate-900 dark:bg-slate-800 dark:text-white";
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
 
   return (
     <div
       dir={isRTL ? "rtl" : "ltr"}
       className="w-full space-y-6 bg-slate-50 p-4 text-slate-800 dark:bg-slate-950 dark:text-slate-100 sm:p-6"
     >
-      {/* Header */}
+      {/* HEADER */}
+
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
@@ -376,11 +494,7 @@ const StockMovements = ({ language: languageProp }) => {
         </div>
 
         <button
-          onClick={() => {
-            setError("");
-            setSuccess("");
-            setShowModal(true);
-          }}
+          onClick={openAdjustmentModal}
           className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-white transition hover:bg-blue-700"
         >
           <Plus size={18} />
@@ -388,8 +502,9 @@ const StockMovements = ({ language: languageProp }) => {
         </button>
       </div>
 
-      {/* Messages */}
-      {error && (
+      {/* MESSAGES */}
+
+      {error && !showModal && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
           {error}
         </div>
@@ -401,7 +516,8 @@ const StockMovements = ({ language: languageProp }) => {
         </div>
       )}
 
-      {/* Statistics */}
+      {/* STATISTICS */}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: t.total, value: stats.total, icon: ClipboardList },
@@ -435,7 +551,8 @@ const StockMovements = ({ language: languageProp }) => {
         })}
       </div>
 
-      {/* Filters */}
+      {/* FILTERS */}
+
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 lg:flex-row">
         <div className="relative flex-1">
           <Search
@@ -452,7 +569,6 @@ const StockMovements = ({ language: languageProp }) => {
           />
         </div>
 
-        {/* Movement Type Filter */}
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
@@ -473,7 +589,6 @@ const StockMovements = ({ language: languageProp }) => {
           ))}
         </select>
 
-        {/* Location Filter */}
         <select
           value={locationFilter}
           onChange={(e) => setLocationFilter(e.target.value)}
@@ -495,7 +610,8 @@ const StockMovements = ({ language: languageProp }) => {
         </select>
       </div>
 
-      {/* Movements Table */}
+      {/* MOVEMENTS TABLE */}
+
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] text-start text-sm">
@@ -598,7 +714,8 @@ const StockMovements = ({ language: languageProp }) => {
         </div>
       </div>
 
-      {/* Adjustment Modal */}
+      {/* ADJUSTMENT MODAL */}
+
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900">
@@ -619,26 +736,52 @@ const StockMovements = ({ language: languageProp }) => {
 
             <form onSubmit={handleSubmit} className="space-y-4">
 
-              {/* Carpet ID */}
+              {/* CARPET DROPDOWN */}
+
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.carpet}
                 </label>
 
-                <input
-                  type="number"
-                  min="1"
+                <select
                   value={form.carpet_id}
                   onChange={(e) =>
-                    setForm({ ...form, carpet_id: e.target.value })
+                    setForm((prev) => ({
+                      ...prev,
+                      carpet_id: e.target.value
+                    }))
                   }
-                  placeholder={t.carpetId}
                   className={inputClass}
                   required
-                />
+                  disabled={loadingCarpets || carpets.length === 0}
+                >
+                  <option value="" className={optionClass}>
+                    {loadingCarpets
+                      ? t.loading
+                      : carpets.length === 0
+                        ? t.noCarpets
+                        : t.selectCarpet}
+                  </option>
+
+                  {carpets.map((carpet) => (
+                    <option
+                      key={carpet.id}
+                      value={String(carpet.id)}
+                      className={optionClass}
+                    >
+                      {carpet.carpet_code || carpet.code || "No Code"}
+                      {" — "}
+                      {carpet.carpet_name ||
+                        carpet.name ||
+                        carpet.title ||
+                        "Unnamed Carpet"}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* Location */}
+              {/* LOCATION */}
+
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.location}
@@ -647,7 +790,10 @@ const StockMovements = ({ language: languageProp }) => {
                 <select
                   value={form.location_id}
                   onChange={(e) =>
-                    setForm({ ...form, location_id: e.target.value })
+                    setForm((prev) => ({
+                      ...prev,
+                      location_id: e.target.value
+                    }))
                   }
                   className={inputClass}
                   required
@@ -668,7 +814,8 @@ const StockMovements = ({ language: languageProp }) => {
                 </select>
               </div>
 
-              {/* Quantity Change */}
+              {/* QUANTITY CHANGE */}
+
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.quantity}
@@ -678,7 +825,10 @@ const StockMovements = ({ language: languageProp }) => {
                   type="number"
                   value={form.quantity_change}
                   onChange={(e) =>
-                    setForm({ ...form, quantity_change: e.target.value })
+                    setForm((prev) => ({
+                      ...prev,
+                      quantity_change: e.target.value
+                    }))
                   }
                   placeholder={t.quantityPlaceholder}
                   className={inputClass}
@@ -690,7 +840,8 @@ const StockMovements = ({ language: languageProp }) => {
                 </p>
               </div>
 
-              {/* Note */}
+              {/* NOTE */}
+
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {t.note}
@@ -699,12 +850,17 @@ const StockMovements = ({ language: languageProp }) => {
                 <textarea
                   value={form.note}
                   onChange={(e) =>
-                    setForm({ ...form, note: e.target.value })
+                    setForm((prev) => ({
+                      ...prev,
+                      note: e.target.value
+                    }))
                   }
                   rows={3}
                   className={inputClass}
                 />
               </div>
+
+              {/* MODAL ERROR */}
 
               {error && (
                 <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-300">
@@ -712,11 +868,15 @@ const StockMovements = ({ language: languageProp }) => {
                 </p>
               )}
 
-              {/* Buttons */}
+              {/* BUTTONS */}
+
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setError("");
+                  }}
                   className="rounded-lg border border-slate-200 px-4 py-2.5 text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   {t.cancel}
@@ -724,7 +884,7 @@ const StockMovements = ({ language: languageProp }) => {
 
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || loadingCarpets || carpets.length === 0}
                   className="rounded-lg bg-blue-600 px-4 py-2.5 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? t.loading : t.save}
