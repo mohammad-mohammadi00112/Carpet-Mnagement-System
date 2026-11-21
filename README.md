@@ -1,24 +1,87 @@
 # Carpet Management System
 
-A comprehensive desktop-based Carpet Management System designed to simplify and automate the daily operations of carpet businesses. The system provides an organized solution for managing carpet inventory, sales, purchases, customers, suppliers, finances, and business reports in one centralized application.
+A full-stack Carpet Management System designed to manage carpet sales, purchases, inventory, customers, suppliers, employees, and financial operations.
 
-Built to support offline retail environments, the application helps business owners and employees manage their operations efficiently, maintain accurate records, track stock across multiple locations, and monitor financial performance.
+## Features
 
-### Key Features
-
-- **Carpet Management:** Manage carpet information, unique carpet codes, categories, and pricing.
-- **Inventory Management:** Track stock quantities across warehouses and shops.
-- **Sales Management:** Process cash and credit sales, manage invoices, and calculate sales totals.
-- **Purchase Management:** Record purchases, manage purchase details, and track supplier transactions.
+- **Carpet Management:** Manage carpet information, categories, and unique carpet codes.
+- **Inventory Management:** Track stock quantities across different locations.
+- **Sales Management:** Manage sales, sale details, returns, and invoices.
+- **Purchase Management:** Record purchases and manage suppliers.
+- **Customer Management:** Manage customer information and records.
+- **Employee Management:** Manage employee information.
 - **Financial Management:** Manage expenses, payments, currencies, and exchange rates.
-- **Customer & Supplier Management:** Maintain customer and supplier records.
-- **Reports & Analytics:** Generate daily and monthly reports for sales, purchases, expenses, and profit or loss.
-- **User & Role Management:** Provide role-based access control for owners, managers, and sellers.
-- **Employee Management:** Manage employee information, attendance, salaries, and leave records.
+- **Reports:** Generate financial and business reports.
+- **Authentication & Authorization:** Secure login and role-based permissions.
+- **Multilingual Support:** English, Persian (Dari), and Pashto.
+- **Dark & Light Mode:** Support for different interface themes.
 
-### Project Goal
+## Technologies Used
 
-The main goal of this project is to provide carpet businesses with a reliable, user-friendly, and efficient management solution that reduces manual work, improves inventory accuracy, and supports better business decision-making.
+### Backend
 
-**Project Type:** Desktop Application  
-**Target Environment:** Offline Carpet Retail Businesses
+- Node.js
+- Express.js
+- PostgreSQL
+- JWT Authentication
+
+### Frontend
+
+- React
+- Vite
+- JavaScript
+- Tailwind CSS
+
+## Project Structure
+
+```text
+Carpet-Management-System/
+├── Back_End/
+├── Front_End/
+├── Database/
+├── DOCS/
+└── Start_Front_And_Back_End.bat
+```
+
+## Installation
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/mohammad-mohammadi00112/Carpet-Mnagement-System.git
+```
+
+2. Install backend dependencies:
+
+```bash
+cd Back_End
+npm install
+```
+
+3. Install frontend dependencies:
+
+```bash
+cd ../Front_End
+npm install
+```
+
+4. Configure the environment variables in the backend and frontend `.env` files.
+
+5. Create the PostgreSQL database and execute the SQL files in the `Database` folder.
+
+6. Start the backend and frontend using their respective start scripts.
+
+## Security
+
+- Environment variables are excluded from Git.
+- Authentication and permission-based access control are implemented.
+
+## Project Status
+
+Under development.
+
+## Author
+
+**Mohammad Mohammadi**
+
+GitHub: [mohammad-mohammadi00112](https://github.com/mohammad-mohammadi00112)
