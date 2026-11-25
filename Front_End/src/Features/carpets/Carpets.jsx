@@ -86,7 +86,7 @@ export default function Carpets() {
 
   const openEdit = (carpet) => {
     setEditing(carpet.id);
-    
+
     setForm({
       ...initialForm,
       ...carpet,
@@ -138,7 +138,7 @@ export default function Carpets() {
       setEditing(null);
 
     } catch (error) {
-     
+
       console.error("Carpet save error:", error);
       alert(error.response?.data?.message || "Failed to save carpet");
     }
@@ -277,11 +277,14 @@ export default function Carpets() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1050px] text-sm">
-            <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+          <table className="w-full min-w-[1050px] text-sm ">
+            <thead className="sticky top-0 z-20 bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
               <tr>
                 {["code", "name", "category", "size", "material", "type", "purchasePrice", "salePrice", "condition", "status", "actions"].map(key => (
-                  <th key={key} className="whitespace-nowrap px-4 py-4 text-start font-semibold">
+                  <th
+                    key={key}
+                    className="sticky top-0 whitespace-nowrap px-4 py-4 text-start font-semibold bg-gray-50 dark:bg-gray-800"
+                  >
                     {tr(key)}
                   </th>
                 ))}
