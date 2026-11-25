@@ -117,7 +117,8 @@ const schemas = {
             purchase_id: 'id!', payment_date: 'datetime!',
             payment_method: 'enum:cash,card,bank_transfer,check',
             amount: 'num+', currency_id: 'id',
-            exchange_rate: 'num+', notes: 'str', created_by: 'id'
+            exchange_rate: 'num+', payment_mode: 'enum:partial,full',
+            notes: 'str', created_by: 'id'
         }
     },
     purchase_details: {

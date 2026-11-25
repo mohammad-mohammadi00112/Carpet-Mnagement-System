@@ -1,4 +1,5 @@
 const carpetDB = require('../configDb')
+const { updateSalePaymentStatus } = require('./payment.service')
 
 const updateSaleTotals = async (saleId, client = carpetDB) => {
     const result = await client.query( `
@@ -21,6 +22,8 @@ const updateSaleTotals = async (saleId, client = carpetDB) => {
     if (!result.rows.length) {
         throw new Error('Sale not found')
     }
+
+    await updateSalePaymentStatus(saleId, client)
 
     return result.rows[0]
 }

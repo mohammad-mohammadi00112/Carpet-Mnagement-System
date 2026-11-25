@@ -11,6 +11,13 @@ export const getPurchasePaymentById = async (id) => {
   return response.data;
 };
 
+export const getPurchasePaymentOptions = async (date) => {
+  const response = await api.get("/purchase_payment_options", {
+    params: date ? { date } : undefined
+  });
+  return response.data;
+};
+
 export const createPurchasePayment = async (paymentData) => {
   const response = await api.post("/purchase_payments", paymentData);
   return response.data;

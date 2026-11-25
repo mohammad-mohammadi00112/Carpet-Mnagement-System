@@ -249,7 +249,7 @@ export default function Payments() {
     );
 
     const totalAmount = payments.reduce(
-        (sum, payment) => sum + Number(payment.amount_in_sale_currency || 0),
+        (sum, payment) => sum + Number(payment.amount_in_base_currency || 0),
         0
     );
 
@@ -410,7 +410,7 @@ export default function Payments() {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-slate-500">{t.total}</p>
-                            <h2 className="mt-2 text-2xl font-bold">{formatMoney(totalAmount)}</h2>
+                            <h2 className="mt-2 text-2xl font-bold">{formatMoney(totalAmount)} {payments[0]?.base_currency_code || ""}</h2>
                         </div>
                         <Wallet size={25} className="text-blue-600" />
                     </div>

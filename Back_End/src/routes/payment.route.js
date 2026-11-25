@@ -6,20 +6,36 @@ router.use(express.json())
 const authenticateToken = require('../meddilewares/auth.middleware')
 const authorizePermission = require('../meddilewares/authorize.middleware')
 
-const { updateSalePaymentStatus } = require('../services/payment.service')
+const {
+    calculateSalePaymentAmount,
+    updateSalePaymentStatus,
+    validateSaleRefund
+} = require('../services/payment.service')
 
 const transaction = require('../utils/transaction')
+const { BASE_CURRENCY_ID_SQL } = require('../services/baseCurrency')
 
 // GET All Payments
 router.get('/payments', authenticateToken, authorizePermission('payments.read'), async (_, res) => {
     try {
         const result = await carpetDB.query(
-            'SELECT * FROM payments'
+            `SELECT p.*,
+                ROUND((CASE WHEN p.payment_type = 'refund' THEN -1 ELSE 1 END) *
+                    COALESCE(p.amount_in_sale_currency,
+                        ROUND(p.amount * p.exchange_rate_to_sale, 2)) *
+                    CASE WHEN s.currency_id = (${BASE_CURRENCY_ID_SQL}) THEN 1
+                         ELSE COALESCE(s.exchange_rate, 1) END, 2) AS amount_in_base_currency,
+                base_currency.code AS base_currency_code
+             FROM payments p
+             JOIN sales s ON s.id = p.sale_id
+             LEFT JOIN currencies base_currency
+                ON base_currency.id = (${BASE_CURRENCY_ID_SQL})
+             ORDER BY p.payment_date DESC, p.id DESC`
         )
 
         res.json(result.rows)
     } catch (error) {
-        res.status(500).json({ message: error.message })
+        res.status(error.status || 500).json({ message: error.message })
     }
 })
 
@@ -37,7 +53,7 @@ router.get('/payments/:id', authenticateToken, authorizePermission('payments.rea
 
         res.json(result.rows[0])
     } catch (error) {
-        res.status(500).json({ message: error.message })
+        res.status(error.status || 500).json({ message: error.message })
     }
 })
 
@@ -54,10 +70,24 @@ router.post('/payments', authenticateToken, authorizePermission('payments.manage
         exchange_rate_to_sale
     } = req.body
 
-    const amount_in_sale_currency = Number(amount) * Number(exchange_rate_to_sale)
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0 ||
+        !Number.isFinite(Number(exchange_rate_to_sale)) || Number(exchange_rate_to_sale) <= 0) {
+        return res.status(400).json({ message: 'Payment amount and exchange rate must be greater than zero.' })
+    }
 
     try {
         await transaction(async (client) => {
+            const sale = await client.query(
+                'SELECT id FROM sales WHERE id = $1 FOR UPDATE', [sale_id]
+            )
+            if (!sale.rows.length) throw new Error('Sale not found')
+
+            const amountInSaleCurrency = await calculateSalePaymentAmount(
+                amount, exchange_rate_to_sale, client
+            )
+            if (payment_type === 'refund') {
+                await validateSaleRefund(sale_id, amountInSaleCurrency, client)
+            }
 
             await client.query(`
                 INSERT INTO payments(
@@ -81,7 +111,7 @@ router.post('/payments', authenticateToken, authorizePermission('payments.manage
                     amount,
                     currency_id,
                     exchange_rate_to_sale,
-                    amount_in_sale_currency
+                    amountInSaleCurrency
                 ])
 
             await updateSalePaymentStatus(sale_id, client)
@@ -89,7 +119,7 @@ router.post('/payments', authenticateToken, authorizePermission('payments.manage
 
         res.json({ message: 'Payment Has Been Saved!' })
     } catch (error) {
-        res.status(500).json({ message: error.message })
+        res.status(error.status || 500).json({ message: error.message })
     }
 })
 
@@ -105,9 +135,13 @@ router.put('/payments/:id', authenticateToken, authorizePermission('payments.man
         payment_type,
         amount,
         currency_id,
-        exchange_rate_to_sale,
-        amount_in_sale_currency
+        exchange_rate_to_sale
     } = req.body
+
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0 ||
+        !Number.isFinite(Number(exchange_rate_to_sale)) || Number(exchange_rate_to_sale) <= 0) {
+        return res.status(400).json({ message: 'Payment amount and exchange rate must be greater than zero.' })
+    }
 
     try {
         const result = await transaction(async (client) => {
@@ -124,6 +158,19 @@ router.put('/payments/:id', authenticateToken, authorizePermission('payments.man
             }
 
             const oldSaleId = oldPayment.rows[0].sale_id
+            const saleIds = [...new Set([Number(oldSaleId), Number(sale_id)])].sort((a, b) => a - b)
+            for (const saleId of saleIds) {
+                const lockedSale = await client.query(
+                    'SELECT id FROM sales WHERE id = $1 FOR UPDATE', [saleId]
+                )
+                if (!lockedSale.rows.length) throw new Error('Sale not found')
+            }
+            const amountInSaleCurrency = await calculateSalePaymentAmount(
+                amount, exchange_rate_to_sale, client
+            )
+            if (payment_type === 'refund') {
+                await validateSaleRefund(sale_id, amountInSaleCurrency, client, Number(id))
+            }
 
             await client.query(`
                 UPDATE payments
@@ -147,7 +194,7 @@ router.put('/payments/:id', authenticateToken, authorizePermission('payments.man
                 amount,
                 currency_id,
                 exchange_rate_to_sale,
-                amount_in_sale_currency,
+                amountInSaleCurrency,
                 id
             ])
 
@@ -166,7 +213,7 @@ router.put('/payments/:id', authenticateToken, authorizePermission('payments.man
 
         res.json({ message: 'Payment Has Been Updated!' })
     } catch (error) {
-        res.status(500).json({ message: error.message })
+        res.status(error.status || 500).json({ message: error.message })
     }
 })
 
@@ -200,7 +247,7 @@ router.patch('/payments/:id', authenticateToken, authorizePermission('payments.m
         const result = await transaction(async (client) => {
 
             const oldPayment = await client.query(`
-                SELECT sale_id, amount, exchange_rate_to_sale
+                SELECT sale_id, amount, exchange_rate_to_sale, payment_type
                 FROM payments
                 WHERE id = $1
                 FOR UPDATE`
@@ -212,15 +259,26 @@ router.patch('/payments/:id', authenticateToken, authorizePermission('payments.m
 
             const oldSaleId = oldPayment.rows[0].sale_id
             const updates = Object.fromEntries(entries)
-
-            if ('amount' in updates || 'exchange_rate_to_sale' in updates) {
-                const amount = updates.amount ?? oldPayment.rows[0].amount
-
-                const rate = updates.exchange_rate_to_sale ??
-                    oldPayment.rows[0].exchange_rate_to_sale
-
-                updates.amount_in_sale_currency = Number(amount) * Number(rate)
+            const newSaleId = updates.sale_id ?? oldSaleId
+            const saleIds = [...new Set([Number(oldSaleId), Number(newSaleId)])].sort((a, b) => a - b)
+            for (const saleId of saleIds) {
+                const lockedSale = await client.query(
+                    'SELECT id FROM sales WHERE id = $1 FOR UPDATE', [saleId]
+                )
+                if (!lockedSale.rows.length) throw new Error('Sale not found')
             }
+            const amount = updates.amount ?? oldPayment.rows[0].amount
+            const rate = updates.exchange_rate_to_sale ?? oldPayment.rows[0].exchange_rate_to_sale
+            const paymentType = updates.payment_type ?? oldPayment.rows[0].payment_type
+            if (!Number.isFinite(Number(amount)) || Number(amount) <= 0 ||
+                !Number.isFinite(Number(rate)) || Number(rate) <= 0) {
+                throw new Error('Payment amount and exchange rate must be greater than zero.')
+            }
+            const amountInSaleCurrency = await calculateSalePaymentAmount(amount, rate, client)
+            if (paymentType === 'refund') {
+                await validateSaleRefund(newSaleId, amountInSaleCurrency, client, Number(id))
+            }
+            updates.amount_in_sale_currency = amountInSaleCurrency
 
             const finalEntries = Object.entries(updates)
 
@@ -235,8 +293,6 @@ router.patch('/payments/:id', authenticateToken, authorizePermission('payments.m
                 SET ${changes}
                 WHERE id = $${values.length + 1}`
             , [...values, id])
-
-            const newSaleId = updates.sale_id ?? oldSaleId
 
             await updateSalePaymentStatus(oldSaleId, client)
 
@@ -253,7 +309,7 @@ router.patch('/payments/:id', authenticateToken, authorizePermission('payments.m
 
         res.json({ message: 'Payment Has Been Updated!' })
     } catch (error) {
-        res.status(500).json({ message: error.message })
+        res.status(error.status || 500).json({ message: error.message })
     }
 })
 
@@ -261,6 +317,13 @@ router.patch('/payments/:id', authenticateToken, authorizePermission('payments.m
 router.delete('/payments/:id', authenticateToken, authorizePermission('payments.manage'), async (req, res) => {
     try {
         const result = await transaction(async (client) => {
+            const existing = await client.query(`
+                SELECT sale_id FROM payments WHERE id = $1 FOR UPDATE`,
+            [req.params.id])
+            if (!existing.rows.length) return { notFound: true }
+
+            const saleId = existing.rows[0].sale_id
+            await client.query('SELECT id FROM sales WHERE id = $1 FOR UPDATE', [saleId])
 
             const deleted = await client.query(`
                 DELETE FROM payments
@@ -271,7 +334,6 @@ router.delete('/payments/:id', authenticateToken, authorizePermission('payments.
                 return { notFound: true }
             }
 
-            const saleId = deleted.rows[0].sale_id
             await updateSalePaymentStatus(saleId, client)
 
             return { success: true }
@@ -283,7 +345,7 @@ router.delete('/payments/:id', authenticateToken, authorizePermission('payments.
 
         res.json({ message: 'Payment Has Been Deleted!' })
     } catch (error) {
-        res.status(500).json({ message: error.message })
+        res.status(error.status || 500).json({ message: error.message })
     }
 })
 

@@ -136,6 +136,7 @@ const translations = {
     transferActivity: "Stock transfer",
     newCarpet: "New Carpet Added",
     paymentReceived: "Payment Received",
+    paymentRefunded: "Payment Refunded",
     newExpense: "New Expense",
     vsPrevious: "Compared with previous period",
     inventoryNote: "Stock quantities across all locations",
@@ -210,6 +211,7 @@ const translations = {
     transferActivity: "انتقال موجودی",
     newCarpet: "افزودن قالین جدید",
     paymentReceived: "دریافت پرداخت",
+    paymentRefunded: "بازپرداخت پرداخت",
     newExpense: "مصرف جدید",
     vsPrevious: "در مقایسه با دوره قبلی",
     inventoryNote: "موجودی تمام محل‌های نگهداری",
@@ -284,6 +286,7 @@ const translations = {
     transferActivity: "د موجودۍ لېږد",
     newCarpet: "نوې غالۍ اضافه شوه",
     paymentReceived: "تادیه ترلاسه شوه",
+    paymentRefunded: "تادیه بېرته ورکړل شوه",
     newExpense: "نوی لګښت",
     vsPrevious: "له تېرې مودې سره پرتله",
     inventoryNote: "د ټولو ځایونو د موجودۍ شمېر",
@@ -592,7 +595,7 @@ function Dashboard() {
 
             <button
               type="button"
-              onClick={fetchDashboard}
+              onClick={() => fetchDashboard()}
               disabled={loading}
               title={t.refresh}
               className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 shadow-sm transition hover:text-teal-600 disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:text-teal-400"

@@ -7,7 +7,8 @@ import {
 
 import {
   getPurchasePayments,
-  createPurchasePayment
+  createPurchasePayment,
+  getPurchasePaymentOptions
 } from "../services/purchases/purchasePaymentService";
 
 const translations = {
@@ -31,6 +32,7 @@ const translations = {
     cash: "Cash",
     bank_transfer: "Bank Transfer",
     card: "Card",
+    check: "Check",
     view: "View",
     save: "Save",
     cancel: "Cancel",
@@ -44,9 +46,24 @@ const translations = {
     loading: "Loading purchase payments...",
     saving: "Saving...",
     loadError: "Failed to load purchase payments.",
-    error: "Something went wrong."
+    error: "Something went wrong.",
+    selectPurchase: "Select purchase",
+    paymentType: "Payment Type",
+    partialPayment: "Partial Payment",
+    fullPayment: "Full Payment",
+    remainingBalance: "Remaining Balance",
+    currencyUnavailable: "No currencies are available for payment.",
+    partialError: "Partial payment must be greater than zero and less than the remaining balance."
   },
   fa: {
+    selectPurchase: "خرید را انتخاب کنید",
+    paymentType: "نوع پرداخت",
+    partialPayment: "پرداخت جزئی",
+    fullPayment: "پرداخت کامل",
+    remainingBalance: "مانده حساب",
+    currencyUnavailable: "ارزی برای پرداخت موجود نیست.",
+    partialError: "پرداخت جزئی باید بیشتر از صفر و کمتر از مانده حساب باشد.",
+    check: "چک",
     title: "پرداخت‌های خرید",
     subtitle: "مدیریت پرداخت‌های انجام‌شده برای خریدها",
     totalPayments: "تعداد پرداخت‌ها",
@@ -82,6 +99,14 @@ const translations = {
     error: "مشکلی به وجود آمده است."
   },
   ps: {
+    selectPurchase: "پېرود وټاکئ",
+    paymentType: "د تادیې ډول",
+    partialPayment: "نیمه تادیه",
+    fullPayment: "بشپړه تادیه",
+    remainingBalance: "پاتې بیلانس",
+    currencyUnavailable: "د تادیې لپاره اسعار نشته.",
+    partialError: "نیمه تادیه باید له صفر زیاته او له پاتې بیلانس څخه کمه وي.",
+    check: "چک",
     title: "د پېرود تادیات",
     subtitle: "د پېرودونو د تادیاتو اداره",
     totalPayments: "د تادیاتو شمېر",
@@ -131,19 +156,21 @@ const emptyForm = {
   purchase_id: "",
   payment_date: "",
   payment_method: "",
+  payment_mode: "partial",
   amount: "",
   currency_id: "",
   exchange_rate: "",
-  notes: "",
-  created_by: 1
+  notes: ""
 };
 
 export default function PurchasePayments() {
   const language = localStorage.getItem("language") || "en";
-  const t = translations[language] || translations.en;
+  const t = { ...translations.en, ...(translations[language] || {}) };
   const rtl = language === "fa" || language === "ps";
 
   const [data, setData] = useState([]);
+  const [purchases, setPurchases] = useState([]);
+  const [currencies, setCurrencies] = useState([]);
   const [search, setSearch] = useState("");
 
   const [modal, setModal] = useState(false);
@@ -160,9 +187,14 @@ export default function PurchasePayments() {
       setLoading(true);
       setError("");
 
-      const result = await getPurchasePayments();
+      const [result, options] = await Promise.all([
+        getPurchasePayments(),
+        getPurchasePaymentOptions()
+      ]);
 
       setData(Array.isArray(result) ? result : []);
+      setPurchases(Array.isArray(options?.purchases) ? options.purchases : []);
+      setCurrencies(Array.isArray(options?.currencies) ? options.currencies : []);
       return true;
     } catch (err) {
       setError(
@@ -197,7 +229,7 @@ export default function PurchasePayments() {
 
   // Statistics
   const totalAmount = data.reduce(
-    (sum, item) => sum + Number(item.amount || 0),
+    (sum, item) => sum + Number(item.amount_in_base_currency ?? item.amount ?? 0),
     0
   );
 
@@ -219,13 +251,41 @@ export default function PurchasePayments() {
   const methodLabel = method =>
     t[method] || method || "-";
 
+  const currencyLabel = id => {
+    const currency = currencies.find(item => Number(item.id) === Number(id));
+    return currency?.code || currency?.name || `#${id}`;
+  };
+
   const getErrorMessage = err =>
     err.response?.data?.message || err.message || t.error;
+
+  const updatePaymentDate = async value => {
+    setForm(previous => ({ ...previous, payment_date: value }));
+    if (!value) return;
+
+    try {
+      const options = await getPurchasePaymentOptions(value.slice(0, 10));
+      const nextCurrencies = Array.isArray(options?.currencies) ? options.currencies : [];
+      setCurrencies(nextCurrencies);
+      const currency = nextCurrencies.find(
+        item => Number(item.id) === Number(form.currency_id)
+      );
+      setForm(previous => ({
+        ...previous,
+        payment_date: value,
+        exchange_rate: currency?.is_base ? "1" : String(currency?.rate_to_base ?? "")
+      }));
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
 
   // Open add modal
   const openAdd = () => {
     setForm({
       ...emptyForm,
+      currency_id: String(currencies.find(currency => currency.is_base)?.id || ""),
+      exchange_rate: "1",
       payment_date: getLocalDateTime()
     });
 
@@ -238,34 +298,57 @@ export default function PurchasePayments() {
     e.preventDefault();
     setError("");
 
+    const selectedPurchase = purchases.find(
+      item => Number(item.id) === Number(form.purchase_id)
+    );
+    const selectedCurrency = currencies.find(
+      item => Number(item.id) === Number(form.currency_id)
+    );
+    const exchangeRate = selectedCurrency?.is_base
+      ? 1
+      : Number(form.exchange_rate);
+    const remainingBase = Number(selectedPurchase?.balance_amount_base || 0);
+    const amount = form.payment_mode === "full"
+      ? Math.round((remainingBase / exchangeRate + Number.EPSILON) * 100) / 100
+      : Number(form.amount);
+
+    if (!selectedPurchase || remainingBase <= 0) {
+      setError(t.required);
+      return;
+    }
+
+    if (form.payment_mode === "partial" &&
+      (!Number.isFinite(amount) || amount <= 0 || amount * exchangeRate >= remainingBase - 0.005)) {
+      setError(t.partialError);
+      return;
+    }
+
     const payment = {
       purchase_id: Number(form.purchase_id),
       payment_date: form.payment_date,
       payment_method: form.payment_method,
-      amount: Number(form.amount),
+      payment_mode: form.payment_mode,
+      amount,
       currency_id: Number(form.currency_id),
-      exchange_rate: Number(form.exchange_rate),
-      notes: form.notes.trim() || null,
-      created_by: Number(form.created_by)
+      exchange_rate: exchangeRate,
+      notes: form.notes.trim() || null
     };
 
     if (
       !form.purchase_id ||
       !form.payment_date ||
       !form.payment_method ||
-      form.amount === "" ||
+      (form.payment_mode === "partial" && form.amount === "") ||
       !form.currency_id ||
-      form.exchange_rate === "" ||
+      (!selectedCurrency?.is_base && form.exchange_rate === "") ||
       !Number.isInteger(payment.purchase_id) ||
       payment.purchase_id <= 0 ||
       !Number.isFinite(payment.amount) ||
-      payment.amount < 0 ||
+      payment.amount <= 0 ||
       !Number.isInteger(payment.currency_id) ||
       payment.currency_id <= 0 ||
       !Number.isFinite(payment.exchange_rate) ||
-      payment.exchange_rate <= 0 ||
-      !Number.isInteger(payment.created_by) ||
-      payment.created_by <= 0
+      payment.exchange_rate <= 0
     ) {
       setError(t.required);
       return;
@@ -301,7 +384,7 @@ export default function PurchasePayments() {
     },
     {
       label: t.totalAmount,
-      value: money(totalAmount),
+      value: `${money(totalAmount)} ${data[0]?.base_currency_code || currencies.find(currency => currency.is_base)?.code || ""}`,
       icon: DollarSign,
       color: "text-green-600 bg-green-100 dark:bg-green-900/30"
     },
@@ -455,7 +538,7 @@ export default function PurchasePayments() {
                       </td>
 
                       <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                        #{item.currency_id}
+                        {currencyLabel(item.currency_id)}
                       </td>
 
                       <td className="px-5 py-4">
@@ -534,7 +617,7 @@ export default function PurchasePayments() {
                         {t.currency}
                       </p>
                       <p className="mt-1 font-medium text-gray-800 dark:text-gray-200">
-                        #{item.currency_id}
+                        {currencyLabel(item.currency_id)}
                       </p>
                     </div>
                   </div>
@@ -596,16 +679,40 @@ export default function PurchasePayments() {
                   {t.purchase}
                 </label>
 
-                <input
-                  type="number"
-                  min="1"
+                <select
                   required
                   value={form.purchase_id}
-                  onChange={e =>
-                    setForm({ ...form, purchase_id: e.target.value })
-                  }
+                  onChange={e => {
+                    const purchase = purchases.find(item => Number(item.id) === Number(e.target.value));
+                    const currencyId = purchase?.currency_id ? String(purchase.currency_id) : form.currency_id;
+                    const currency = currencies.find(item => Number(item.id) === Number(currencyId));
+                    setForm({
+                      ...form,
+                      purchase_id: e.target.value,
+                      currency_id: currencyId,
+                      exchange_rate: currency?.is_base ? "1" : String(currency?.rate_to_base ?? "")
+                    });
+                  }}
                   className={inputClass}
-                />
+                >
+                  <option value="">{t.selectPurchase}</option>
+                  {purchases.map(purchase => (
+                    <option key={purchase.id} value={purchase.id} disabled={Number(purchase.balance_amount_base) <= 0}>
+                      #{purchase.id} · {money(purchase.balance_amount)} {currencies.find(c => Number(c.id) === Number(purchase.currency_id))?.code || `#${purchase.currency_id}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t.remainingBalance}
+                </label>
+                <div className={`${inputClass} flex items-center`}>
+                  {form.purchase_id
+                    ? `${money(purchases.find(item => Number(item.id) === Number(form.purchase_id))?.balance_amount || 0)} ${currencies.find(c => Number(c.id) === Number(purchases.find(item => Number(item.id) === Number(form.purchase_id))?.currency_id))?.code || ""}`
+                    : "—"}
+                </div>
               </div>
 
               {/* Payment Date */}
@@ -618,9 +725,7 @@ export default function PurchasePayments() {
                   type="datetime-local"
                   required
                   value={form.payment_date}
-                  onChange={e =>
-                    setForm({ ...form, payment_date: e.target.value })
-                  }
+                  onChange={e => updatePaymentDate(e.target.value)}
                   className={inputClass}
                 />
               </div>
@@ -643,18 +748,34 @@ export default function PurchasePayments() {
                   <option value="cash">{t.cash}</option>
                   <option value="bank_transfer">{t.bank_transfer}</option>
                   <option value="card">{t.card}</option>
+                  <option value="check">{t.check}</option>
+                </select>
+              </div>
+
+              {/* Payment Type */}
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t.paymentType}
+                </label>
+                <select
+                  value={form.payment_mode}
+                  onChange={e => setForm({ ...form, payment_mode: e.target.value, amount: "" })}
+                  className={inputClass}
+                >
+                  <option value="partial">{t.partialPayment}</option>
+                  <option value="full">{t.fullPayment}</option>
                 </select>
               </div>
 
               {/* Amount */}
-              <div>
+              {form.payment_mode === "partial" && <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   {t.amount}
                 </label>
 
                 <input
                   type="number"
-                  min="0"
+                  min="0.01"
                   step="0.01"
                   required
                   value={form.amount}
@@ -663,7 +784,7 @@ export default function PurchasePayments() {
                   }
                   className={inputClass}
                 />
-              </div>
+              </div>}
 
               {/* Currency ID */}
               <div>
@@ -671,20 +792,30 @@ export default function PurchasePayments() {
                   {t.currency}
                 </label>
 
-                <input
-                  type="number"
-                  min="1"
+                <select
                   required
                   value={form.currency_id}
-                  onChange={e =>
-                    setForm({ ...form, currency_id: e.target.value })
-                  }
+                  onChange={e => {
+                    const currency = currencies.find(item => Number(item.id) === Number(e.target.value));
+                    setForm({
+                      ...form,
+                      currency_id: e.target.value,
+                      exchange_rate: currency?.is_base ? "1" : String(currency?.rate_to_base ?? "")
+                    });
+                  }}
                   className={inputClass}
-                />
+                >
+                  <option value="">{t.currencyUnavailable}</option>
+                  {currencies.map(currency => (
+                    <option key={currency.id} value={currency.id}>
+                      {currency.code || currency.name || `#${currency.id}`}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Exchange Rate */}
-              <div>
+              {!currencies.find(item => Number(item.id) === Number(form.currency_id))?.is_base && <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   {t.rate}
                 </label>
@@ -695,12 +826,10 @@ export default function PurchasePayments() {
                   step="0.000001"
                   required
                   value={form.exchange_rate}
-                  onChange={e =>
-                    setForm({ ...form, exchange_rate: e.target.value })
-                  }
+                  readOnly
                   className={inputClass}
                 />
-              </div>
+              </div>}
 
               {/* Notes */}
               <div className="sm:col-span-2">
@@ -769,7 +898,7 @@ export default function PurchasePayments() {
                 [t.date, formatDate(viewItem.payment_date)],
                 [t.method, methodLabel(viewItem.payment_method)],
                 [t.amount, money(viewItem.amount)],
-                [t.currency, viewItem.currency_id],
+                [t.currency, currencyLabel(viewItem.currency_id)],
                 [t.rate, viewItem.exchange_rate],
                 [t.notes, viewItem.notes || "-"],
                 [t.createdBy, viewItem.created_by]

@@ -21,6 +21,7 @@ const translations = {
     active: "Active", cancelled: "Cancelled", date: "Date",
     supplier: "Supplier", employee: "Employee", place: "Purchase Place",
     currency: "Currency", rate: "Exchange Rate", totalAmount: "Total Amount",
+    balance: "Outstanding Balance",
     paymentStatus: "Payment Status", status: "Record Status", notes: "Notes",
     actions: "Actions", searchFilter: "Search & Filters", noData: "No purchases found",
     addTitle: "Add Purchase", editTitle: "Edit Purchase", details: "Purchase Details",
@@ -46,7 +47,7 @@ const translations = {
     active: "فعال", cancelled: "لغوشده", date: "تاریخ",
     supplier: "تأمین‌کننده", employee: "کارمند", place: "محل خرید",
     currency: "واحد پول", rate: "نرخ تبادله", totalAmount: "مجموع مبلغ",
-    paymentStatus: "وضعیت پرداخت", status: "وضعیت ثبت", notes: "یادداشت",
+    paymentStatus: "وضعیت پرداخت", balance: "مانده حساب", status: "وضعیت ثبت", notes: "یادداشت",
     actions: "عملیات", searchFilter: "جستجو و فیلتر", noData: "خریدی پیدا نشد",
     addTitle: "افزودن خرید", editTitle: "ویرایش خرید", details: "جزئیات خرید",
     save: "ثبت خرید", update: "ذخیره تغییرات", cancel: "انصراف",
@@ -71,7 +72,7 @@ const translations = {
     active: "فعال", cancelled: "لغوه شوی", date: "نېټه",
     supplier: "عرضه کوونکی", employee: "کارمند", place: "د پېرود ځای",
     currency: "اسعار", rate: "د تبادلې نرخ", totalAmount: "ټوله اندازه",
-    paymentStatus: "د تادیې حالت", status: "د ثبت حالت", notes: "یادښتونه",
+    paymentStatus: "د تادیې حالت", balance: "پاتې بیلانس", status: "د ثبت حالت", notes: "یادښتونه",
     actions: "کړنې", searchFilter: "لټون او فلټر", noData: "پېرود ونه موندل شو",
     addTitle: "پېرود زیاتول", editTitle: "پېرود سمول", details: "د پېرود جزئیات",
     save: "پېرود ثبتول", update: "بدلونونه ثبتول", cancel: "لغوه",
@@ -136,7 +137,7 @@ const getErrorMessage = error =>
 
 export default function Purchases() {
   const language = localStorage.getItem("language") || "en";
-  const t = translations[language] || translations.en;
+  const t = { ...translations.en, ...(translations[language] || {}) };
   const isRTL = language === "fa" || language === "ps";
 
   const [purchases, setPurchases] = useState([]);
@@ -167,7 +168,10 @@ export default function Purchases() {
         throw new Error("You Don't Have Permission Access To This Section");
       }
 
-      setPurchases(result);
+      setPurchases(result.map(purchase => ({
+        ...purchase,
+        payment_status: purchase.calculated_payment_status || purchase.payment_status
+      })));
     } catch (err) {
       console.error("Load purchases error:", err);
       setError(`${t.loadError} ${getErrorMessage(err)}`);
@@ -205,16 +209,20 @@ export default function Purchases() {
   }, [purchases, search, paymentFilter, statusFilter]);
 
   const totalAmount = purchases.reduce(
-    (sum, item) => sum + Number(item.total_amount || 0), 0
+    (sum, item) => sum + Number(item.total_amount_base ?? item.total_amount ?? 0), 0
   );
 
-  const paidAmount = purchases
-    .filter(p => p.payment_status === "paid")
-    .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+  const paidAmount = purchases.reduce(
+    (sum, purchase) => sum + Number((purchase.paid_amount_base ?? (
+      purchase.payment_status === "paid" ? purchase.total_amount : 0
+    )) || 0), 0
+  );
 
-  const unpaidAmount = purchases
-    .filter(p => p.payment_status === "unpaid")
-    .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+  const unpaidAmount = purchases.reduce(
+    (sum, purchase) => sum + Number((purchase.balance_amount_base ?? (
+      purchase.payment_status === "unpaid" ? purchase.total_amount : 0
+    )) || 0), 0
+  );
 
   const getSupplier = id =>
     suppliers.find(s => s.id === Number(id))?.name ||
@@ -408,19 +416,19 @@ export default function Purchases() {
           },
           {
             label: t.amount,
-            value: money(totalAmount),
+            value: `${money(totalAmount)} ${purchases[0]?.base_currency_code || ""}`,
             icon: Wallet,
             color: "text-purple-600 bg-purple-100 dark:bg-purple-900/30"
           },
           {
             label: t.paid,
-            value: money(paidAmount),
+            value: `${money(paidAmount)} ${purchases[0]?.base_currency_code || ""}`,
             icon: CheckCircle,
             color: "text-green-600 bg-green-100 dark:bg-green-900/30"
           },
           {
             label: t.unpaid,
-            value: money(unpaidAmount),
+            value: `${money(unpaidAmount)} ${purchases[0]?.base_currency_code || ""}`,
             icon: Clock,
             color: "text-red-600 bg-red-100 dark:bg-red-900/30"
           }
@@ -695,6 +703,8 @@ export default function Purchases() {
                     [t.currency, getCurrency(selected.currency_id)],
                     [t.rate, selected.exchange_rate],
                     [t.totalAmount, `${money(selected.total_amount)} ${getCurrency(selected.currency_id)}`],
+                    [t.paid, `${money(selected.paid_amount ?? 0)} ${getCurrency(selected.currency_id)}`],
+                    [t.balance, `${money(selected.balance_amount ?? selected.total_amount)} ${getCurrency(selected.currency_id)}`],
                     [t.paymentStatus, statusBadge(selected.payment_status)],
                     [t.status, statusBadge(selected.status)],
                     [t.createdBy, selected.created_by ?? "—"]
@@ -825,9 +835,9 @@ export default function Purchases() {
                   <label className="space-y-1.5 text-sm">
                     <span>{t.paymentStatus}</span>
                     <select
+                      disabled
                       className={inputClass}
                       value={form.payment_status}
-                      onChange={e => setForm({ ...form, payment_status: e.target.value })}
                     >
                       <option value="paid">{t.paidStatus}</option>
                       <option value="partial">{t.partial}</option>

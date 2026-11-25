@@ -787,9 +787,9 @@ const getReceivables = async () => {
                 SUM(
                     CASE
                         WHEN payment_type = 'refund'
-                            THEN -COALESCE(amount_in_sale_currency, 0)
+                            THEN -COALESCE(amount_in_sale_currency, ROUND(amount * exchange_rate_to_sale, 2), 0)
 
-                        ELSE COALESCE(amount_in_sale_currency, 0)
+                        ELSE COALESCE(amount_in_sale_currency, ROUND(amount * exchange_rate_to_sale, 2), 0)
                     END
                 ) AS paid_amount
 
@@ -882,8 +882,8 @@ const getRecentSales = async () => {
                 SUM(
                     CASE
                         WHEN payment_type = 'refund'
-                            THEN -COALESCE(amount_in_sale_currency, 0)
-                        ELSE COALESCE(amount_in_sale_currency, 0)
+                            THEN -COALESCE(amount_in_sale_currency, ROUND(amount * exchange_rate_to_sale, 2), 0)
+                        ELSE COALESCE(amount_in_sale_currency, ROUND(amount * exchange_rate_to_sale, 2), 0)
                     END
                 ) AS paid_amount
             FROM payments
@@ -1133,17 +1133,18 @@ const getRecentActivities = async () => {
             -- Payments
             SELECT
 
-                'paymentReceived' AS title,
+                CASE WHEN p.payment_type = 'refund' THEN 'paymentRefunded'
+                     ELSE 'paymentReceived' END AS title,
 
-                'Payment for Sale #' || p.sale_id AS detail,
+                CASE WHEN p.payment_type = 'refund'
+                    THEN 'Refund for Sale #' || p.sale_id
+                    ELSE 'Payment for Sale #' || p.sale_id END AS detail,
 
                 p.payment_date AS time,
 
                 'payment' AS type
 
             FROM payments p
-
-            WHERE p.payment_type IS DISTINCT FROM 'refund'
 
 
             UNION ALL

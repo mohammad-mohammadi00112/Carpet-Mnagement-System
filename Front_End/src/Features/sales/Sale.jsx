@@ -1378,13 +1378,8 @@ const Sale = () => {
                   </label>
 
                   <select
+                    disabled
                     value={form.payment_status}
-                    onChange={(e) =>
-                      setForm((previous) => ({
-                        ...previous,
-                        payment_status: e.target.value
-                      }))
-                    }
                     className={inputClass}
                   >
                     <option value="unpaid">{t.unpaid}</option>

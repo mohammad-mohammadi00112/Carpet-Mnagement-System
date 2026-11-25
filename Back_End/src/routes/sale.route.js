@@ -47,7 +47,7 @@ router.delete('/sales/:id', authenticateToken, authorizePermission('sales.manage
 router.post('/sales', authenticateToken, authorizePermission('sales.manage'), async (req, res) => {
     const {
         customer_id, employee_id, sale_date, currency_id,
-        exchange_rate, tax_amount, payment_status, status,
+        exchange_rate, tax_amount, status,
         due_date, notes, created_by
     } = req.body
 
@@ -58,11 +58,11 @@ router.post('/sales', authenticateToken, authorizePermission('sales.manage'), as
                 exchange_rate, discount, tax_amount, total_amount,
                 payment_status, status, due_date, notes, created_by
             )
-            VALUES ($1, $2, $3, $4, $5, 0, $6, 0, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, 0, $6, 0, 'unpaid', $7, $8, $9, $10)
             RETURNING id`,
             [
                 customer_id, employee_id, sale_date, currency_id,
-                exchange_rate, tax_amount ?? 0, payment_status,
+                exchange_rate, tax_amount ?? 0,
                 status, due_date, notes, created_by
             ]
         )
@@ -81,7 +81,7 @@ router.put('/sales/:id', authenticateToken, authorizePermission('sales.manage'),
     const { id } = req.params
     const {
         customer_id, employee_id, sale_date, currency_id,
-        exchange_rate, tax_amount, payment_status, status,
+        exchange_rate, tax_amount, status,
         due_date, notes, created_by
     } = req.body
 
@@ -95,15 +95,14 @@ router.put('/sales/:id', authenticateToken, authorizePermission('sales.manage'),
                     currency_id = $4,
                     exchange_rate = $5,
                     tax_amount = $6,
-                    payment_status = $7,
-                    status = $8,
-                    due_date = $9,
-                    notes = $10,
-                    created_by = $11
-                WHERE id = $12`,
+                    status = $7,
+                    due_date = $8,
+                    notes = $9,
+                    created_by = $10
+                WHERE id = $11`,
                 [
                     customer_id, employee_id, sale_date, currency_id,
-                    exchange_rate, tax_amount ?? 0, payment_status,
+                    exchange_rate, tax_amount ?? 0,
                     status, due_date, notes, created_by, id
                 ]
             )
@@ -122,7 +121,7 @@ router.patch('/sales/:id', authenticateToken, authorizePermission('sales.manage'
  const { id } = req.params
     const allowed = [
         'customer_id', 'employee_id', 'sale_date', 'currency_id',
-        'exchange_rate', 'tax_amount', 'payment_status', 'status',
+        'exchange_rate', 'tax_amount', 'status',
         'due_date', 'notes', 'created_by'
     ]
 

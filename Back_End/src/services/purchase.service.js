@@ -1,4 +1,5 @@
 const carpetDB = require('../configDb')
+const { updatePurchasePaymentStatus } = require('./purchasePayment.service')
 
 const updatePurchaseTotal = async (purchaseId, client = carpetDB) => {
     const result = await client.query(`
@@ -12,6 +13,8 @@ const updatePurchaseTotal = async (purchaseId, client = carpetDB) => {
         SET total_amount = $1
         WHERE id = $2`
     , [result.rows[0].total, purchaseId])
+
+    await updatePurchasePaymentStatus(purchaseId, client)
 }
 
 const updatePurchaseTotalForIds = async (...args) => {

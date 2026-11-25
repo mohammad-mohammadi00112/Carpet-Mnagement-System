@@ -5,10 +5,50 @@ const router = express.Router()
 router.use(express.json())
 const authenticateToken = require('../meddilewares/auth.middleware')
 const authorizePermission = require('../meddilewares/authorize.middleware')
+const transaction = require('../utils/transaction')
+const { updatePurchasePaymentStatus } = require('../services/purchasePayment.service')
+const { BASE_CURRENCY_ID_SQL } = require('../services/baseCurrency')
+
+const purchasesWithPaymentTotals = `
+    SELECT p.*,
+        (SELECT code FROM currencies WHERE id = (${BASE_CURRENCY_ID_SQL})) AS base_currency_code,
+        COALESCE(payments.paid_base, 0) AS paid_amount_base,
+        ROUND(p.total_amount * CASE WHEN p.currency_id = (${BASE_CURRENCY_ID_SQL}) THEN 1
+            ELSE COALESCE(p.exchange_rate, 1) END, 2) AS total_amount_base,
+        ROUND(GREATEST(
+            p.total_amount * CASE WHEN p.currency_id = (${BASE_CURRENCY_ID_SQL}) THEN 1
+                ELSE COALESCE(p.exchange_rate, 1) END - COALESCE(payments.paid_base, 0),
+            0
+        ), 2) AS balance_amount_base,
+        ROUND(COALESCE(payments.paid_base, 0) / NULLIF(
+            CASE WHEN p.currency_id = (${BASE_CURRENCY_ID_SQL}) THEN 1
+                ELSE COALESCE(p.exchange_rate, 1) END, 0
+        ), 2) AS paid_amount,
+        ROUND(GREATEST(
+            p.total_amount * CASE WHEN p.currency_id = (${BASE_CURRENCY_ID_SQL}) THEN 1
+                ELSE COALESCE(p.exchange_rate, 1) END - COALESCE(payments.paid_base, 0),
+            0
+        ) / NULLIF(
+            CASE WHEN p.currency_id = (${BASE_CURRENCY_ID_SQL}) THEN 1
+                ELSE COALESCE(p.exchange_rate, 1) END, 0
+        ), 2) AS balance_amount,
+        CASE
+            WHEN p.total_amount <= 0 OR COALESCE(payments.paid_base, 0) <= 0 THEN 'unpaid'
+            WHEN COALESCE(payments.paid_base, 0) >=
+                ROUND(p.total_amount * CASE WHEN p.currency_id = (${BASE_CURRENCY_ID_SQL}) THEN 1
+                    ELSE COALESCE(p.exchange_rate, 1) END, 2) - 0.01 THEN 'paid'
+            ELSE 'partial'
+        END AS calculated_payment_status
+    FROM purchases p
+    LEFT JOIN LATERAL (
+        SELECT SUM(ROUND(pp.amount * CASE WHEN pp.currency_id = (${BASE_CURRENCY_ID_SQL}) THEN 1
+            ELSE COALESCE(pp.exchange_rate, 1) END, 2)) AS paid_base
+        FROM purchase_payments pp WHERE pp.purchase_id = p.id
+    ) payments ON TRUE`
 
 router.get('/purchases', authenticateToken, authorizePermission('purchases.read'),(_, res) => {
     carpetDB
-        .query(`SELECT * FROM purchases;`)
+        .query(`${purchasesWithPaymentTotals} ORDER BY p.purchase_date DESC, p.id DESC`)
         .then((result) => res.json(result.rows))
         .catch((error) => res.json(error))
 })
@@ -16,21 +56,27 @@ router.get('/purchases', authenticateToken, authorizePermission('purchases.read'
 router.get('/purchases/:id', authenticateToken, authorizePermission('purchases.read'),(req, res) => {
     const { id } = req.params
     carpetDB
-        .query(`SELECT * FROM purchases WHERE id = $1;`, [id])
+        .query(`${purchasesWithPaymentTotals} WHERE p.id = $1;`, [id])
         .then((result) => res.json(result.rows))
         .catch((error) => res.json(error))
 })
-router.post('/purchases', authenticateToken, authorizePermission('purchases.manage'),(req, res) => {
-    const { supplier_id, employee_id, purchase_date, purchase_place,
-        currency_id, exchange_rate, total_amount, payment_status, status, notes, created_by } = req.body
+router.post('/purchases', authenticateToken, authorizePermission('purchases.manage'), async (req, res) => {
+        const { supplier_id, employee_id, purchase_date, purchase_place,
+        currency_id, exchange_rate, total_amount, status, notes, created_by } = req.body
 
-    carpetDB
-        .query(`INSERT INTO purchases (supplier_id,employee_id,purchase_date,purchase_place,
+    try {
+      const purchaseId = await transaction(async client => {
+        const inserted = await client.query(`INSERT INTO purchases (supplier_id,employee_id,purchase_date,purchase_place,
             currency_id,exchange_rate,total_amount,payment_status,status,notes,created_by)
-            VALUES ($1, $2,$3,$4, $5, $6, $7, $8, $9, $10,$11 )
-            `, [supplier_id, employee_id, purchase_date, purchase_place, currency_id, exchange_rate, total_amount, payment_status, status, notes, created_by])
-        .then(() => res.json({ message: 'New Purchase saved Successfully' }))
-        .catch((error) => res.json(error))
+            VALUES ($1, $2,$3,$4, $5, $6, $7, 'unpaid', $8, $9,$10 )
+            RETURNING id`, [supplier_id, employee_id, purchase_date, purchase_place, currency_id, exchange_rate, total_amount, status, notes, created_by])
+        await updatePurchasePaymentStatus(inserted.rows[0].id, client)
+        return inserted.rows[0].id
+      })
+      res.status(201).json({ message: 'New Purchase saved Successfully', id: purchaseId })
+    } catch (error) {
+      res.status(500).json({ message: error.message })
+    }
 })
 
 router.delete('/purchases/:id', authenticateToken, authorizePermission('purchases.manage'),(req, res) => {
@@ -41,7 +87,7 @@ router.delete('/purchases/:id', authenticateToken, authorizePermission('purchase
         .catch((error) => res.json(error))
 })
 
-router.patch('/purchases/:id', authenticateToken, authorizePermission('purchases.manage'),(req, res) => {
+router.patch('/purchases/:id', authenticateToken, authorizePermission('purchases.manage'), async (req, res) => {
     const { id } = req.params
     const entries = Object.entries(req.body)
     const changes = entries.map((entry, index) =>
@@ -49,19 +95,26 @@ router.patch('/purchases/:id', authenticateToken, authorizePermission('purchases
     ).join(',')
     const value = entries.map(entry => entry[1])
 
-    carpetDB
-        .query(`UPDATE purchases SET ${changes}  WHERE id = $${value.length + 1}
-        `, [...value, id])
-        .then(() => res.json({ message: 'Purchase Has Been Updated!' }))
-        .catch((error) => res.json(error))
+    try {
+      await transaction(async client => {
+        await client.query(`UPDATE purchases SET ${changes} WHERE id = $${value.length + 1}`,
+          [...value, id])
+        await updatePurchasePaymentStatus(id, client)
+      })
+      res.json({ message: 'Purchase Has Been Updated!' })
+    } catch (error) {
+      res.status(500).json({ message: error.message })
+    }
 })
 
-router.put('/purchases/:id', authenticateToken, authorizePermission('purchases.manage'),(req, res) => {
+router.put('/purchases/:id', authenticateToken, authorizePermission('purchases.manage'), async (req, res) => {
     const {id}  = req.params
     const { supplier_id, employee_id, purchase_date, purchase_place,
-        currency_id, exchange_rate, total_amount, payment_status, status, notes, created_by } = req.body
+        currency_id, exchange_rate, total_amount, status, notes, created_by } = req.body
 
-    carpetDB
+    try {
+      await transaction(async client => {
+        await client
         .query(`UPDATE purchases 
                 SET 
                     supplier_id = $1,
@@ -71,15 +124,18 @@ router.put('/purchases/:id', authenticateToken, authorizePermission('purchases.m
                     currency_id = $5,
                     exchange_rate = $6,
                     total_amount = $7,
-                    payment_status = $8,
-                    status = $9,
-                    notes = $10,
-                    created_by = $11
-                WHERE id = $12;
+                    status = $8,
+                    notes = $9,
+                    created_by = $10
+                WHERE id = $11;
             `, [supplier_id, employee_id, purchase_date, purchase_place, currency_id, exchange_rate,
-                 total_amount, payment_status, status, notes, created_by, id])
-        .then(() => res.json({ message: 'Purchase Has Been Updated!' }))
-        .catch((error) => res.json(error))
+                 total_amount, status, notes, created_by, id])
+        await updatePurchasePaymentStatus(id, client)
+      })
+      res.json({ message: 'Purchase Has Been Updated!' })
+    } catch (error) {
+      res.status(500).json({ message: error.message })
+    }
 
 
 })
