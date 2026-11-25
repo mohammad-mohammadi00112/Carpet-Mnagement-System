@@ -1,12 +1,13 @@
 
 const carpetDB = require('../configDb')
 const { getSaleProfits } = require('./profit.service')
+const { isBaseCurrencySQL } = require('./baseCurrency')
 const getExpenseReport = async () => {
     const result = await carpetDB.query(`
         SELECT
             COALESCE(SUM(
                 CASE
-                    WHEN currency_id = 1 THEN amount
+                    WHEN ${isBaseCurrencySQL('currency_id')} THEN amount
                     ELSE amount * exchange_rate
                 END
             ) FILTER (
@@ -15,7 +16,7 @@ const getExpenseReport = async () => {
 
             COALESCE(SUM(
                 CASE
-                    WHEN currency_id = 1 THEN amount
+                    WHEN ${isBaseCurrencySQL('currency_id')} THEN amount
                     ELSE amount * exchange_rate
                 END
             ) FILTER (
@@ -25,7 +26,7 @@ const getExpenseReport = async () => {
 
             COALESCE(SUM(
                 CASE
-                    WHEN currency_id = 1 THEN amount
+                    WHEN ${isBaseCurrencySQL('currency_id')} THEN amount
                     ELSE amount * exchange_rate
                 END
             ), 0) AS total
@@ -40,7 +41,7 @@ const getSalesReport = async () => {
         SELECT
             COALESCE(SUM(
                 CASE
-                    WHEN currency_id = 1 THEN total_amount
+                    WHEN ${isBaseCurrencySQL('currency_id')} THEN total_amount
                     ELSE total_amount * exchange_rate
                 END
             ) FILTER (
@@ -49,7 +50,7 @@ const getSalesReport = async () => {
 
             COALESCE(SUM(
                 CASE
-                    WHEN currency_id = 1 THEN total_amount
+                    WHEN ${isBaseCurrencySQL('currency_id')} THEN total_amount
                     ELSE total_amount * exchange_rate
                 END
             ) FILTER (
@@ -59,7 +60,7 @@ const getSalesReport = async () => {
 
             COALESCE(SUM(
                 CASE
-                    WHEN currency_id = 1 THEN total_amount
+                    WHEN ${isBaseCurrencySQL('currency_id')} THEN total_amount
                     ELSE total_amount * exchange_rate
                 END
             ), 0) AS total
@@ -75,7 +76,7 @@ const getPurchaseReport = async () => {
         SELECT
             COALESCE(SUM(
                 CASE
-                    WHEN currency_id = 1 THEN total_amount
+                    WHEN ${isBaseCurrencySQL('currency_id')} THEN total_amount
                     ELSE total_amount * exchange_rate
                 END
             ) FILTER (
@@ -84,7 +85,7 @@ const getPurchaseReport = async () => {
 
             COALESCE(SUM(
                 CASE
-                    WHEN currency_id = 1 THEN total_amount
+                    WHEN ${isBaseCurrencySQL('currency_id')} THEN total_amount
                     ELSE total_amount * exchange_rate
                 END
             ) FILTER (
@@ -94,7 +95,7 @@ const getPurchaseReport = async () => {
 
             COALESCE(SUM(
                 CASE
-                    WHEN currency_id = 1 THEN total_amount
+                    WHEN ${isBaseCurrencySQL('currency_id')} THEN total_amount
                     ELSE total_amount * exchange_rate
                 END
             ), 0) AS total
@@ -110,7 +111,7 @@ const getProfitLossReport = async () => {
     const result = await carpetDB.query(`
         SELECT COALESCE(SUM(
             CASE
-                WHEN currency_id = 1 THEN amount
+                WHEN ${isBaseCurrencySQL('currency_id')} THEN amount
                 ELSE amount * exchange_rate
             END
         ), 0) AS expenses

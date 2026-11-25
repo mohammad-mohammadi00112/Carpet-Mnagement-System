@@ -90,7 +90,7 @@ router.post('/stock_movements', authenticateToken, authorizePermission('carpets.
             quantity_change === undefined ||
             quantity_change === null ||
             quantity_change === "" ||
-            !Number.isFinite(Number(quantity_change)) ||
+            !Number.isInteger(Number(quantity_change)) ||
             Number(quantity_change) === 0
         ) {
             return res.status(400).json({
@@ -144,42 +144,43 @@ router.post('/stock_movements', authenticateToken, authorizePermission('carpets.
                 });
             }
 
-            // Get current inventory quantity
-            const inventoryResult = await client.query(
-                `SELECT quantity
-                 FROM inventory
-                 WHERE carpet_id = $1
-                 AND location_id = $2
-                 FOR UPDATE`,
-                [carpetId, locationId]
-            );
+            // Apply the adjustment atomically. Locking a missing inventory row
+            // does not prevent concurrent inserts, so use one guarded upsert.
+            const inventoryResult = quantityChange > 0
+                ? await client.query(
+                    `INSERT INTO inventory (carpet_id, location_id, quantity)
+                     VALUES ($1, $2, $3)
+                     ON CONFLICT (carpet_id, location_id)
+                     DO UPDATE SET
+                        quantity = inventory.quantity + EXCLUDED.quantity,
+                        updated_at = CURRENT_TIMESTAMP
+                     RETURNING id, quantity`,
+                    [carpetId, locationId, quantityChange]
+                )
+                : await client.query(
+                    `UPDATE inventory
+                     SET quantity = quantity + $3,
+                         updated_at = CURRENT_TIMESTAMP
+                     WHERE carpet_id = $1
+                       AND location_id = $2
+                       AND quantity >= -$3::integer
+                     RETURNING id, quantity`,
+                    [carpetId, locationId, quantityChange]
+                );
 
-            const currentQuantity =
-                inventoryResult.rows.length > 0
-                    ? Number(inventoryResult.rows[0].quantity)
-                    : 0;
-
-            // Calculate new quantity
-            const newQuantity = currentQuantity + quantityChange;
-
-            // Prevent negative inventory
-            if (newQuantity < 0) {
+            if (!inventoryResult.rows.length) {
+                const currentResult = await client.query(
+                    'SELECT quantity FROM inventory WHERE carpet_id = $1 AND location_id = $2',
+                    [carpetId, locationId]
+                );
+                const currentQuantity = Number(currentResult.rows[0]?.quantity ?? 0);
                 await client.query('ROLLBACK');
-
                 return res.status(400).json({
                     message: `Insufficient stock. Current quantity is ${currentQuantity}`
                 });
             }
-
-            // Insert or update inventory
-            await client.query(
-                `INSERT INTO inventory
-                    (carpet_id, location_id, quantity)
-                 VALUES ($1, $2, $3)
-                 ON CONFLICT (carpet_id, location_id)
-                 DO UPDATE SET quantity = EXCLUDED.quantity`,
-                [carpetId, locationId, newQuantity]
-            );
+            const inventoryRow = inventoryResult.rows[0];
+            const newQuantity = Number(inventoryRow.quantity);
 
             // Insert stock movement record
             const movementResult = await client.query(
@@ -194,6 +195,30 @@ router.post('/stock_movements', authenticateToken, authorizePermission('carpets.
                     quantityChange,
                     note || null,
                     createdBy
+                ]
+            );
+
+            await client.query(
+                `INSERT INTO audit_log
+                    (user_id, action, table_name, record_id, old_data, new_data, ip_address)
+                 VALUES (
+                    $1, 'update', 'inventory', $2,
+                    jsonb_build_object('quantity', $3::integer),
+                    jsonb_build_object(
+                        'quantity', $4::integer,
+                        'carpet_id', $5::integer,
+                        'location_id', $6::integer
+                    ),
+                    $7
+                 )`,
+                [
+                    createdBy,
+                    inventoryRow.id,
+                    newQuantity - quantityChange,
+                    newQuantity,
+                    carpetId,
+                    locationId,
+                    req.ip
                 ]
             );
 

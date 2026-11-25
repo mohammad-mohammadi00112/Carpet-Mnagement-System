@@ -1,5 +1,6 @@
 
 const carpetDB = require('../configDb');
+const { BASE_CURRENCY_ID_SQL, isBaseCurrencySQL } = require('./baseCurrency');
 
 // ======================================================
 // 1. PERIOD CONFIGURATION
@@ -8,10 +9,10 @@ const carpetDB = require('../configDb');
 const PERIODS = {
     today: {
         start: 'CURRENT_DATE',
-        end: "CURRENT_DATE + INTERVAL '1 day'",
+        end: 'CURRENT_TIMESTAMP',
 
         previousStart: "CURRENT_DATE - INTERVAL '1 day'",
-        previousEnd: 'CURRENT_DATE',
+        previousEnd: "CURRENT_DATE + (CURRENT_TIMESTAMP - CURRENT_DATE)",
 
         chartStart: 'CURRENT_DATE',
         chartEnd: "DATE_TRUNC('hour', CURRENT_TIMESTAMP)",
@@ -22,10 +23,10 @@ const PERIODS = {
 
     thisWeek: {
         start: "DATE_TRUNC('week', CURRENT_DATE)",
-        end: "CURRENT_DATE + INTERVAL '1 day'",
+        end: 'CURRENT_TIMESTAMP',
 
         previousStart: "DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '1 week'",
-        previousEnd: "DATE_TRUNC('week', CURRENT_DATE)",
+        previousEnd: "DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '1 week' + (CURRENT_TIMESTAMP - DATE_TRUNC('week', CURRENT_DATE))",
 
         chartStart: "DATE_TRUNC('week', CURRENT_DATE)",
         chartEnd: 'CURRENT_DATE',
@@ -36,10 +37,10 @@ const PERIODS = {
 
     thisMonth: {
         start: "DATE_TRUNC('month', CURRENT_DATE)",
-        end: "CURRENT_DATE + INTERVAL '1 day'",
+        end: 'CURRENT_TIMESTAMP',
 
         previousStart: "DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'",
-        previousEnd: "DATE_TRUNC('month', CURRENT_DATE)",
+        previousEnd: "DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month' + (CURRENT_TIMESTAMP - DATE_TRUNC('month', CURRENT_DATE))",
 
         chartStart: "DATE_TRUNC('month', CURRENT_DATE)",
         chartEnd: 'CURRENT_DATE',
@@ -50,10 +51,10 @@ const PERIODS = {
 
     thisYear: {
         start: "DATE_TRUNC('year', CURRENT_DATE)",
-        end: "CURRENT_DATE + INTERVAL '1 day'",
+        end: 'CURRENT_TIMESTAMP',
 
         previousStart: "DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '1 year'",
-        previousEnd: "DATE_TRUNC('year', CURRENT_DATE)",
+        previousEnd: "DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '1 year' + (CURRENT_TIMESTAMP - DATE_TRUNC('year', CURRENT_DATE))",
 
         chartStart: "DATE_TRUNC('year', CURRENT_DATE)",
         chartEnd: 'CURRENT_DATE',
@@ -81,7 +82,7 @@ const calculateChange = (current, previous) => {
     previous = toNumber(previous);
 
     if (previous === 0) {
-        return current > 0 ? 100 : 0;
+        return current > 0 ? 100 : current < 0 ? -100 : 0;
     }
 
     return Number(
@@ -110,14 +111,67 @@ const getPeriodCondition = (column, period, previous = false) => {
 };
 
 
-// Currency conversion to AFN
-const currencyToAFN = (amount, currencyId, exchangeRate) => {
+// Currency conversion to the configured base currency
+const currencyToBase = (amount, currencyId, exchangeRate) => {
     return `
         (${amount} * CASE
-            WHEN ${currencyId} = 1 THEN 1
+            WHEN ${isBaseCurrencySQL(currencyId)} THEN 1
             ELSE COALESCE(${exchangeRate}, 1)
         END)
     `;
+};
+
+const getReturnedRevenueSQL = (condition) => `
+    SELECT COALESCE(
+        SUM(${currencyToBase(
+            'sr.refund_amount',
+            's.currency_id',
+            's.exchange_rate'
+        )}),
+        0
+    )
+    FROM sale_returns sr
+    JOIN sales s ON s.id = sr.sale_id
+    WHERE s.status = 'active'
+      AND ${condition}
+`;
+
+const getReturnedCostSQL = (condition) => `
+    SELECT COALESCE(
+        SUM(srd.quantity * COALESCE(pc.average_cost, 0)),
+        0
+    )
+    FROM sale_returns sr
+    JOIN sales s ON s.id = sr.sale_id
+    JOIN sale_return_details srd ON srd.return_id = sr.id
+    JOIN sales_details sd ON sd.id = srd.sales_detail_id
+    LEFT JOIN LATERAL (
+        SELECT
+            SUM(
+                pd.quantity * pd.purchase_price * CASE
+                    WHEN ${isBaseCurrencySQL('p.currency_id')} THEN 1
+                    ELSE COALESCE(p.exchange_rate, 1)
+                END
+            ) / NULLIF(SUM(pd.quantity), 0) AS average_cost
+        FROM purchase_details pd
+        JOIN purchases p ON p.id = pd.purchase_id
+        WHERE pd.carpet_id = sd.carpet_id
+          AND p.purchase_date <= s.sale_date::date
+          AND p.status = 'active'
+    ) pc ON TRUE
+    WHERE s.status = 'active'
+      AND ${condition}
+`;
+
+const getBaseCurrencyCode = async () => {
+    const result = await carpetDB.query(`
+        SELECT COALESCE(
+            (SELECT code FROM currencies WHERE id = (${BASE_CURRENCY_ID_SQL})),
+            'AFN'
+        ) AS code
+    `);
+
+    return result.rows[0].code;
 };
 
 
@@ -133,6 +187,17 @@ const getSalesAndPurchasesSummary = async (period) => {
 
     const previousSalesCondition = getPeriodCondition(
         'sale_date',
+        period,
+        true
+    );
+
+    const currentReturnsCondition = getPeriodCondition(
+        'sr.return_date',
+        period
+    );
+
+    const previousReturnsCondition = getPeriodCondition(
+        'sr.return_date',
         period,
         true
     );
@@ -155,7 +220,7 @@ const getSalesAndPurchasesSummary = async (period) => {
             (
                 SELECT COALESCE(
                     SUM(
-                        ${currencyToAFN(
+                        ${currencyToBase(
                             'total_amount',
                             'currency_id',
                             'exchange_rate'
@@ -166,6 +231,8 @@ const getSalesAndPurchasesSummary = async (period) => {
                 FROM sales
                 WHERE status = 'active'
                   AND ${salesCondition}
+            ) - (
+                ${getReturnedRevenueSQL(currentReturnsCondition)}
             ) AS sales,
 
 
@@ -173,7 +240,7 @@ const getSalesAndPurchasesSummary = async (period) => {
             (
                 SELECT COALESCE(
                     SUM(
-                        ${currencyToAFN(
+                        ${currencyToBase(
                             'total_amount',
                             'currency_id',
                             'exchange_rate'
@@ -184,6 +251,8 @@ const getSalesAndPurchasesSummary = async (period) => {
                 FROM sales
                 WHERE status = 'active'
                   AND ${previousSalesCondition}
+            ) - (
+                ${getReturnedRevenueSQL(previousReturnsCondition)}
             ) AS previous_sales,
 
 
@@ -191,7 +260,7 @@ const getSalesAndPurchasesSummary = async (period) => {
             (
                 SELECT COALESCE(
                     SUM(
-                        ${currencyToAFN(
+                        ${currencyToBase(
                             'total_amount',
                             'currency_id',
                             'exchange_rate'
@@ -209,7 +278,7 @@ const getSalesAndPurchasesSummary = async (period) => {
             (
                 SELECT COALESCE(
                     SUM(
-                        ${currencyToAFN(
+                        ${currencyToBase(
                             'total_amount',
                             'currency_id',
                             'exchange_rate'
@@ -250,6 +319,17 @@ const getDashboardProfit = async (period) => {
         true
     );
 
+    const currentReturnsCondition = getPeriodCondition(
+        'sr.return_date',
+        period
+    );
+
+    const previousReturnsCondition = getPeriodCondition(
+        'sr.return_date',
+        period,
+        true
+    );
+
     const result = await carpetDB.query(`
         SELECT
 
@@ -265,13 +345,15 @@ const getDashboardProfit = async (period) => {
                     )
                     *
                     CASE
-                        WHEN s.currency_id = 1 THEN 1
+                        WHEN ${isBaseCurrencySQL('s.currency_id')} THEN 1
                         ELSE COALESCE(s.exchange_rate, 1)
                     END
                 ) FILTER (
                     WHERE ${currentCondition}
                 ),
                 0
+            ) - (
+                ${getReturnedRevenueSQL(currentReturnsCondition)}
             ) AS current_revenue,
 
 
@@ -286,6 +368,8 @@ const getDashboardProfit = async (period) => {
                     WHERE ${currentCondition}
                 ),
                 0
+            ) - (
+                ${getReturnedCostSQL(currentReturnsCondition)}
             ) AS current_cost,
 
 
@@ -301,13 +385,15 @@ const getDashboardProfit = async (period) => {
                     )
                     *
                     CASE
-                        WHEN s.currency_id = 1 THEN 1
+                        WHEN ${isBaseCurrencySQL('s.currency_id')} THEN 1
                         ELSE COALESCE(s.exchange_rate, 1)
                     END
                 ) FILTER (
                     WHERE ${previousCondition}
                 ),
                 0
+            ) - (
+                ${getReturnedRevenueSQL(previousReturnsCondition)}
             ) AS previous_revenue,
 
 
@@ -322,6 +408,8 @@ const getDashboardProfit = async (period) => {
                     WHERE ${previousCondition}
                 ),
                 0
+            ) - (
+                ${getReturnedCostSQL(previousReturnsCondition)}
             ) AS previous_cost
 
 
@@ -355,7 +443,7 @@ const getDashboardProfit = async (period) => {
                         pd.quantity
                         * pd.purchase_price
                         * CASE
-                            WHEN p.currency_id = 1 THEN 1
+                            WHEN ${isBaseCurrencySQL('p.currency_id')} THEN 1
                             ELSE COALESCE(p.exchange_rate, 1)
                           END
                     )
@@ -430,7 +518,7 @@ const getExpenseSummary = async (period) => {
 
             COALESCE(
                 SUM(
-                    ${currencyToAFN(
+                    ${currencyToBase(
                         'amount',
                         'currency_id',
                         'exchange_rate'
@@ -444,7 +532,7 @@ const getExpenseSummary = async (period) => {
 
             COALESCE(
                 SUM(
-                    ${currencyToAFN(
+                    ${currencyToBase(
                         'amount',
                         'currency_id',
                         'exchange_rate'
@@ -598,8 +686,7 @@ const getInventorySummary = async () => {
 
 
             COUNT(*) FILTER (
-                WHERE total_quantity > 0
-                  AND total_quantity <= 5
+                WHERE total_quantity <= 5
             ) AS low_stock
 
         FROM carpet_stock
@@ -675,12 +762,13 @@ const getReceivables = async () => {
                 SUM(
                     GREATEST(
                         s.total_amount -
+                        COALESCE(return_totals.returned_amount, 0) -
                         COALESCE(payment_totals.paid_amount, 0),
                         0
                     )
                     *
                     CASE
-                        WHEN s.currency_id = 1 THEN 1
+                        WHEN ${isBaseCurrencySQL('s.currency_id')} THEN 1
                         ELSE COALESCE(s.exchange_rate, 1)
                     END
                 ),
@@ -712,6 +800,13 @@ const getReceivables = async () => {
         ) payment_totals
 
             ON payment_totals.sale_id = s.id
+
+        LEFT JOIN (
+            SELECT sale_id, SUM(refund_amount) AS returned_amount
+            FROM sale_returns
+            GROUP BY sale_id
+        ) return_totals
+            ON return_totals.sale_id = s.id
 
 
         WHERE s.status = 'active'
@@ -746,15 +841,25 @@ const getRecentSales = async () => {
             s.sale_date AS date,
 
             (
-                s.total_amount *
+                GREATEST(
+                    s.total_amount - COALESCE(return_totals.returned_amount, 0),
+                    0
+                ) *
                 CASE
-                    WHEN s.currency_id = 1 THEN 1
+                    WHEN ${isBaseCurrencySQL('s.currency_id')} THEN 1
                     ELSE COALESCE(s.exchange_rate, 1)
                 END
             ) AS amount,
 
             CASE
-                WHEN s.payment_status = 'paid'
+                WHEN GREATEST(
+                    s.total_amount - COALESCE(return_totals.returned_amount, 0),
+                    0
+                ) = 0
+                  OR COALESCE(payment_totals.paid_amount, 0) >= GREATEST(
+                    s.total_amount - COALESCE(return_totals.returned_amount, 0),
+                    0
+                )
                     THEN 'completed'
                 ELSE 'pending'
             END AS status
@@ -764,7 +869,30 @@ const getRecentSales = async () => {
         LEFT JOIN customers c
             ON c.id = s.customer_id
 
+        LEFT JOIN (
+            SELECT sale_id, SUM(refund_amount) AS returned_amount
+            FROM sale_returns
+            GROUP BY sale_id
+        ) return_totals
+            ON return_totals.sale_id = s.id
+
+        LEFT JOIN (
+            SELECT
+                sale_id,
+                SUM(
+                    CASE
+                        WHEN payment_type = 'refund'
+                            THEN -COALESCE(amount_in_sale_currency, 0)
+                        ELSE COALESCE(amount_in_sale_currency, 0)
+                    END
+                ) AS paid_amount
+            FROM payments
+            GROUP BY sale_id
+        ) payment_totals
+            ON payment_totals.sale_id = s.id
+
         WHERE s.status = 'active'
+          AND s.sale_date <= CURRENT_TIMESTAMP
 
         ORDER BY s.sale_date DESC
 
@@ -801,6 +929,11 @@ const getDashboardChart = async (period) => {
         period
     );
 
+    const returnsCondition = getPeriodCondition(
+        'sr.return_date',
+        period
+    );
+
     const result = await carpetDB.query(`
         WITH time_buckets AS (
 
@@ -825,7 +958,7 @@ const getDashboardChart = async (period) => {
                 SUM(
                     total_amount *
                     CASE
-                        WHEN currency_id = 1 THEN 1
+                        WHEN ${isBaseCurrencySQL('currency_id')} THEN 1
                         ELSE COALESCE(exchange_rate, 1)
                     END
                 ) AS total
@@ -842,6 +975,23 @@ const getDashboardChart = async (period) => {
 
         ),
 
+        returns_data AS (
+
+            SELECT
+                DATE_TRUNC('${bucket}', sr.return_date) AS bucket,
+                SUM(${currencyToBase(
+                    'sr.refund_amount',
+                    's.currency_id',
+                    's.exchange_rate'
+                )}) AS total
+            FROM sale_returns sr
+            JOIN sales s ON s.id = sr.sale_id
+            WHERE s.status = 'active'
+              AND ${returnsCondition}
+            GROUP BY DATE_TRUNC('${bucket}', sr.return_date)
+
+        ),
+
 
         purchases_data AS (
 
@@ -855,7 +1005,7 @@ const getDashboardChart = async (period) => {
                 SUM(
                     total_amount *
                     CASE
-                        WHEN currency_id = 1 THEN 1
+                        WHEN ${isBaseCurrencySQL('currency_id')} THEN 1
                         ELSE COALESCE(exchange_rate, 1)
                     END
                 ) AS total
@@ -883,7 +1033,7 @@ const getDashboardChart = async (period) => {
             COALESCE(
                 sd.total,
                 0
-            ) AS sales,
+            ) - COALESCE(rd.total, 0) AS sales,
 
             COALESCE(
                 pd.total,
@@ -895,6 +1045,9 @@ const getDashboardChart = async (period) => {
         LEFT JOIN sales_data sd
             ON sd.bucket = tb.bucket
 
+        LEFT JOIN returns_data rd
+            ON rd.bucket = tb.bucket
+
         LEFT JOIN purchases_data pd
             ON pd.bucket = tb.bucket
 
@@ -903,7 +1056,9 @@ const getDashboardChart = async (period) => {
     `);
 
     return result.rows.map(row => ({
-        day: row.day,
+        day: config.chartUnit === 'day'
+            ? String(row.day).trim().toLowerCase()
+            : String(row.day).trim(),
         sales: toNumber(row.sales),
         purchases: toNumber(row.purchases)
     }));
@@ -932,6 +1087,7 @@ const getRecentActivities = async () => {
             FROM sales s
 
             WHERE s.status = 'active'
+              AND s.sale_date <= CURRENT_TIMESTAMP
 
 
             UNION ALL
@@ -1047,7 +1203,8 @@ const getDashboardData = async (user, period = 'thisWeek') => {
         receivables,
         recentSales,
         chart,
-        activities
+        activities,
+        currencyCode
     ] = await Promise.all([
 
         getSalesAndPurchasesSummary(period),
@@ -1068,7 +1225,9 @@ const getDashboardData = async (user, period = 'thisWeek') => {
 
         getDashboardChart(period),
 
-        getRecentActivities()
+        getRecentActivities(),
+
+        getBaseCurrencyCode()
 
     ]);
 
@@ -1108,7 +1267,7 @@ const getDashboardData = async (user, period = 'thisWeek') => {
         {
             key: 'sales',
             value: sales,
-            unit: 'AFN',
+            unit: currencyCode,
             change: calculateChange(sales, previousSales),
             positive: sales >= previousSales
         },
@@ -1116,7 +1275,7 @@ const getDashboardData = async (user, period = 'thisWeek') => {
         {
             key: 'purchases',
             value: purchases,
-            unit: 'AFN',
+            unit: currencyCode,
             change: calculateChange(purchases, previousPurchases),
             positive: purchases <= previousPurchases
         },
@@ -1124,7 +1283,7 @@ const getDashboardData = async (user, period = 'thisWeek') => {
         {
             key: 'profit',
             value: netProfit,
-            unit: 'AFN',
+            unit: currencyCode,
             change: calculateChange(netProfit, previousNetProfit),
             positive: netProfit >= previousNetProfit
         },
@@ -1166,7 +1325,7 @@ const getDashboardData = async (user, period = 'thisWeek') => {
         {
             key: 'receivables',
             value: receivables,
-            unit: 'AFN',
+            unit: currencyCode,
             change: 0,
             positive: true
         },
@@ -1174,7 +1333,7 @@ const getDashboardData = async (user, period = 'thisWeek') => {
         {
             key: 'expenses',
             value: expenses,
-            unit: 'AFN',
+            unit: currencyCode,
             change: calculateChange(expenses, previousExpenses),
             positive: expenses <= previousExpenses
         }
@@ -1218,7 +1377,9 @@ const getDashboardData = async (user, period = 'thisWeek') => {
 
         recentSales,
 
-        activities
+        activities,
+
+        currencyCode
 
     };
 

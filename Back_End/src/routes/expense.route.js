@@ -29,7 +29,7 @@ router.delete('/expenses/:id', authenticateToken, authorizePermission('expenses.
         .catch((error) => res.json(error))
 })
 router.post('/expenses', authenticateToken, authorizePermission('expenses.manage'), async (req, res) => {
-    const { category_id, expense_date, amount, currency_id, description, created_by } = req.body
+    const { category_id, expense_date, amount, currency_id, description } = req.body
 
     try {
         const exchange_rate = await getLatestExchangeRate(currency_id)
@@ -38,7 +38,7 @@ router.post('/expenses', authenticateToken, authorizePermission('expenses.manage
             INSERT INTO expenses
             (category_id, expense_date, amount, currency_id, exchange_rate, description, created_by)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
-        `, [category_id, expense_date, amount, currency_id, exchange_rate, description, created_by])
+        `, [category_id, expense_date, amount, currency_id, exchange_rate, description, req.user.id])
 
         res.json({ message: 'New Expense Has Been Added!' })
     } catch (error) {

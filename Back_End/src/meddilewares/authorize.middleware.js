@@ -16,7 +16,7 @@ const authorizePermission = (permissionCode) => {
                 , [req.user.role_id, permissionCode])
             .then((result) => {
                 if (result.rows.length === 0) {
-                    return res.json({
+                    return res.status(403).json({
                         message: 'Access Denied! You do not have permission.'
                     })
                 }
@@ -24,14 +24,11 @@ const authorizePermission = (permissionCode) => {
                 if (req.path.includes('shop_settings') && req.file) {
                     delete req.body.logo
                 }
-                console.log('BODY:', req.body)
-                console.log('FILE:', req.file)
-                console.log('CONTENT TYPE:', req.headers['content-type'])
-
                 validateRequest(req, res, next)
             })
             .catch((error) => {
-                res.json({ message: error.message })
+                console.error('Permission lookup failed:', error)
+                res.status(500).json({ message: 'Unable to verify permissions.' })
             })
     }
 }

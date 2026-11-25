@@ -138,11 +138,11 @@ const translations = {
 };
 
 const actionStyles = {
-  INSERT:
+  insert:
     "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
-  UPDATE:
+  update:
     "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
-  DELETE:
+  delete:
     "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400",
 };
 
@@ -165,6 +165,8 @@ const parseJsonData = (data) => {
 
   return data;
 };
+
+const normalizeAction = (action) => String(action || "").toLowerCase();
 
 export default function AuditLog() {
   const lang =
@@ -224,14 +226,16 @@ export default function AuditLog() {
       const query = search.toLowerCase();
 
       const matchesSearch =
-        String(log.user_id ?? t.system).toLowerCase().includes(query) ||
+        String(log.user_name || log.user_id || t.system)
+          .toLowerCase()
+          .includes(query) ||
         String(log.table_name || "").toLowerCase().includes(query) ||
         String(log.record_id ?? "").toLowerCase().includes(query) ||
         String(log.ip_address || "").toLowerCase().includes(query) ||
         String(log.action || "").toLowerCase().includes(query);
 
       const matchesAction =
-        actionFilter === "all" || log.action === actionFilter;
+        actionFilter === "all" || normalizeAction(log.action) === actionFilter;
 
       const matchesTable =
         tableFilter === "all" || log.table_name === tableFilter;
@@ -266,19 +270,19 @@ export default function AuditLog() {
     },
     {
       label: t.inserts,
-      value: logs.filter((log) => log.action === "INSERT").length,
+      value: logs.filter((log) => normalizeAction(log.action) === "insert").length,
       icon: Activity,
       color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10",
     },
     {
       label: t.updates,
-      value: logs.filter((log) => log.action === "UPDATE").length,
+      value: logs.filter((log) => normalizeAction(log.action) === "update").length,
       icon: RefreshCw,
       color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-500/10",
     },
     {
       label: t.deletes,
-      value: logs.filter((log) => log.action === "DELETE").length,
+      value: logs.filter((log) => normalizeAction(log.action) === "delete").length,
       icon: Database,
       color: "text-red-600 bg-red-50 dark:bg-red-500/10",
     },
@@ -300,9 +304,9 @@ export default function AuditLog() {
   };
 
   const getActionLabel = (action) => {
-    if (action === "INSERT") return t.created;
-    if (action === "UPDATE") return t.updated;
-    if (action === "DELETE") return t.deleted;
+    if (normalizeAction(action) === "insert") return t.created;
+    if (normalizeAction(action) === "update") return t.updated;
+    if (normalizeAction(action) === "delete") return t.deleted;
     return action || t.unknown;
   };
 
@@ -427,9 +431,9 @@ export default function AuditLog() {
                 className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-800"
               >
                 <option value="all">{t.allActions}</option>
-                <option value="INSERT">{t.created}</option>
-                <option value="UPDATE">{t.updated}</option>
-                <option value="DELETE">{t.deleted}</option>
+                <option value="insert">{t.created}</option>
+                <option value="update">{t.updated}</option>
+                <option value="delete">{t.deleted}</option>
               </select>
 
               <select
@@ -489,7 +493,7 @@ export default function AuditLog() {
                       <td className="px-5 py-4">
                         <span
                           className={`inline-flex rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                            actionStyles[log.action] ||
+                            actionStyles[normalizeAction(log.action)] ||
                             "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                           }`}
                         >
@@ -500,7 +504,7 @@ export default function AuditLog() {
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
                           <User size={16} className="text-slate-400" />
-                          {log.user_id ?? t.system}
+                          {log.user_name || log.user_id || t.system}
                         </div>
                       </td>
 
@@ -637,7 +641,7 @@ export default function AuditLog() {
                   </p>
                   <span
                     className={`inline-flex rounded-lg px-3 py-1.5 text-sm font-semibold ${
-                      actionStyles[selectedLog.action] || ""
+                      actionStyles[normalizeAction(selectedLog.action)] || ""
                     }`}
                   >
                     {getActionLabel(selectedLog.action)}
@@ -647,7 +651,7 @@ export default function AuditLog() {
                 <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
                   <p className="mb-2 text-xs text-slate-500">{t.user}</p>
                   <p className="font-semibold">
-                    {selectedLog.user_id ?? t.system}
+                    {selectedLog.user_name || selectedLog.user_id || t.system}
                   </p>
                 </div>
 

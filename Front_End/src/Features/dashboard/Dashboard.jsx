@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Wallet,
@@ -27,7 +27,7 @@ import {
   Loader2,
 } from "lucide-react";
 
-import api from "../services/api";
+import { getDashboardData } from "../services/dashboardService";
 
 
 // ======================================================
@@ -319,8 +319,8 @@ const formatNumber = (value, language = "en") => {
   )
 }
 
-const formatCurrency = (value, language = "en") => {
-  return `${formatNumber(value, language)} AFN`;
+const formatCurrency = (value, language = "en", currencyCode = "AFN") => {
+  return `${formatNumber(value, language)} ${currencyCode}`;
 };
 
 const formatDate = (value, language = "en") => {
@@ -372,21 +372,17 @@ function Dashboard() {
   // FETCH DASHBOARD DATA
   // ====================================================
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = useCallback(async (signal) => {
+    if (signal?.aborted) return;
+
     try {
       setLoading(true);
       setError("");
 
-      const response = await api.get("/dashboard", {
-        params: { period },
-      });
-
-      if (!response.data?.success) {
-        throw new Error(response.data?.message || "Dashboard request failed");
-      }
-
-      setDashboardData(response.data.data);
+      const data = await getDashboardData(period, signal);
+      setDashboardData(data);
     } catch (err) {
+      if (signal?.aborted) return;
       console.error("Dashboard fetch error:", err);
 
       setError(
@@ -395,13 +391,16 @@ function Dashboard() {
           t.loadError
       );
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  };
+  }, [period, t.loadError]);
 
   useEffect(() => {
-    fetchDashboard();
-  }, [period]);
+    const controller = new AbortController();
+    Promise.resolve().then(() => fetchDashboard(controller.signal));
+
+    return () => controller.abort();
+  }, [fetchDashboard]);
 
   // ====================================================
   // PERIOD OPTIONS
@@ -459,6 +458,7 @@ function Dashboard() {
     totalExpenses: 0,
     netProfit: 0,
   };
+  const currencyCode = dashboardData?.currencyCode || "AFN";
 
   const totalStock = Number(inventory.totalStock || 0);
 
@@ -466,15 +466,18 @@ function Dashboard() {
   const chartMax = Math.max(
     1,
     ...chart.flatMap((item) => [
-      Number(item.sales || 0),
-      Number(item.purchases || 0),
+      Math.max(0, Number(item.sales || 0)),
+      Math.max(0, Number(item.purchases || 0)),
     ])
   )
 
   // Financial chart percentages
-  const revenue = Math.max(0, Number(financialSummary.totalRevenue || 0));
-  const cost = Math.max(0, Number(financialSummary.totalCost || 0));
-  const expenses = Math.max(0, Number(financialSummary.totalExpenses || 0));
+  const revenueAmount = Number(financialSummary.totalRevenue || 0);
+  const revenue = Math.max(0, revenueAmount);
+  const costAmount = Number(financialSummary.totalCost || 0);
+  const cost = Math.max(0, costAmount);
+  const expensesAmount = Number(financialSummary.totalExpenses || 0);
+  const expenses = Math.max(0, expensesAmount);
 
   const financialTotal = revenue + cost + expenses;
 
@@ -484,11 +487,6 @@ function Dashboard() {
   const costPercent =
     financialTotal > 0
       ? (cost / financialTotal) * 100
-      : 0;
-
-  const expensePercent =
-    financialTotal > 0
-      ? (expenses / financialTotal) * 100
       : 0;
 
   const financialGradient = `conic-gradient(
@@ -651,8 +649,8 @@ function Dashboard() {
                       </span>
 
                       <span className="text-xs font-medium text-slate-400">
-                        {item.unit === "AFN"
-                          ? "AFN"
+                        {["sales", "purchases", "profit", "receivables", "expenses"].includes(item.key)
+                          ? item.unit || currencyCode
                           : ["pieces", "pcs"].includes(item.unit)
                             ? t.pieces
                             : item.unit
@@ -675,7 +673,7 @@ function Dashboard() {
                         : "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400"
                     }`}
                   >
-                    {positive ? (
+                    {Number(item.change || 0) >= 0 ? (
                       <ArrowUpRight size={14} />
                     ) : (
                       <ArrowDownRight size={14} />
@@ -754,10 +752,10 @@ function Dashboard() {
               {chart.length > 0 ? (
                 chart.map((item, index) => {
                   const salesHeight =
-                    (Number(item.sales || 0) / chartMax) * 100;
+                    (Math.max(0, Number(item.sales || 0)) / chartMax) * 100;
 
                   const purchasesHeight =
-                    (Number(item.purchases || 0) / chartMax) * 100;
+                    (Math.max(0, Number(item.purchases || 0)) / chartMax) * 100;
 
                   return (
                     <div
@@ -766,13 +764,13 @@ function Dashboard() {
                     >
                       <div className="flex h-[85%] w-full items-end justify-center gap-1 sm:gap-2">
                         <div
-                          title={`${t.sales}: ${formatCurrency(item.sales, language)}`}
+                          title={`${t.sales}: ${formatCurrency(item.sales, language, currencyCode)}`}
                           className="w-full max-w-7 rounded-t-md bg-teal-500 transition-all hover:bg-teal-400"
                           style={{ height: `${salesHeight}%` }}
                         />
 
                         <div
-                          title={`${t.purchases}: ${formatCurrency(item.purchases, language)}`}
+                          title={`${t.purchases}: ${formatCurrency(item.purchases, language, currencyCode)}`}
                           className="w-full max-w-7 rounded-t-md bg-blue-400 transition-all hover:bg-blue-300"
                           style={{ height: `${purchasesHeight}%` }}
                         />
@@ -816,11 +814,11 @@ function Dashboard() {
                   </span>
 
                   <span className="mt-1 text-xl font-bold text-slate-900 dark:text-white">
-                    {formatNumber(revenue, language)}
+                    {formatNumber(revenueAmount, language)}
                   </span>
 
                   <span className="text-[10px] text-slate-400">
-                    AFN
+                    {currencyCode}
                   </span>
                 </div>
               </div>
@@ -830,17 +828,17 @@ function Dashboard() {
               {[
                 {
                   label: t.totalRevenue,
-                  amount: revenue,
+                  amount: revenueAmount,
                   color: "bg-teal-500",
                 },
                 {
                   label: t.totalCost,
-                  amount: cost,
+                  amount: costAmount,
                   color: "bg-blue-500",
                 },
                 {
                   label: t.totalExpenses,
-                  amount: expenses,
+                  amount: expensesAmount,
                   color: "bg-amber-500",
                 },
               ].map((item) => (
@@ -857,7 +855,7 @@ function Dashboard() {
                   </div>
 
                   <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    {formatCurrency(item.amount, language)}
+                    {formatCurrency(item.amount, language, currencyCode)}
                   </span>
                 </div>
               ))}
@@ -1087,7 +1085,7 @@ function Dashboard() {
                         </td>
 
                         <td className="px-5 py-4 text-xs font-bold text-slate-800 dark:text-slate-200">
-                          {formatCurrency(sale.amount, language)}
+                          {formatCurrency(sale.amount, language, currencyCode)}
                         </td>
 
                         <td className="px-5 py-4">

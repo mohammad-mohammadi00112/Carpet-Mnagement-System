@@ -1,9 +1,11 @@
 
 
 const carpetDB = require('../configDb')
+const { BASE_CURRENCY_ID_SQL } = require('./baseCurrency')
 
 const getLatestExchangeRate = async (currencyId) => {
-    if (Number(currencyId) === 1) return 1
+    const baseResult = await carpetDB.query(`SELECT (${BASE_CURRENCY_ID_SQL}) AS id`)
+    if (Number(currencyId) === Number(baseResult.rows[0]?.id)) return 1
 
     const result = await carpetDB.query(`
         SELECT rate_to_base

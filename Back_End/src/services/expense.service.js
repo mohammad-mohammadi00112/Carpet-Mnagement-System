@@ -1,7 +1,10 @@
 
 
-const convertExpenseToBase = (amount, currencyId, exchangeRate) => {
-    if (Number(currencyId) === 1) return Number(amount)
+const convertExpenseToBase = (amount, currencyId, exchangeRate, baseCurrencyId) => {
+    if (
+        baseCurrencyId !== undefined &&
+        Number(currencyId) === Number(baseCurrencyId)
+    ) return Number(amount)
 
     if (!exchangeRate || Number(exchangeRate) <= 0) {
         throw new Error('Invalid exchange rate')

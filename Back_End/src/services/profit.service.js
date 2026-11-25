@@ -1,5 +1,6 @@
 
 const carpetDB = require('../configDb')
+const { isBaseCurrencySQL } = require('./baseCurrency')
 
 const getSaleProfits = async () => {
     const result = await carpetDB.query(`
@@ -8,7 +9,7 @@ const getSaleProfits = async () => {
 
            GREATEST(s.total_amount - COALESCE(s.tax_amount, 0), 0)
             * CASE
-                WHEN s.currency_id = 1 THEN 1
+                WHEN ${isBaseCurrencySQL('s.currency_id')} THEN 1
                 ELSE s.exchange_rate
               END AS revenue,
 
@@ -30,7 +31,7 @@ const getSaleProfits = async () => {
                 SUM(
                     pd.quantity * pd.purchase_price *
                     CASE
-                        WHEN p.currency_id = 1 THEN 1
+                        WHEN ${isBaseCurrencySQL('p.currency_id')} THEN 1
                         ELSE p.exchange_rate
                     END
                 ) / NULLIF(SUM(pd.quantity), 0) AS average_cost
